@@ -835,10 +835,84 @@ function importJSON(input) {
 function exportToPDF() {
     if (!Object.keys(familyTree.members).length) { showToast('❌ خالی ہے!'); return; }
     showToast('📄 پرنٹ تیار...');
+    
     const style = document.createElement('style');
-    style.textContent = `@media print{body{background:white;padding:10px}.install-banner,.action-bar,.stats-bar,.input-section,.relation-calculator,.members-list{display:none!important}.tree-container{box-shadow:none;padding:5px;margin:0}.tree-scroll{overflow:visible}.node-card{box-shadow:none;border:1px solid #ccc;color:black!important;background:white!important}.node-card.male{background:#e3f2fd!important}.node-card.female{background:#fce4ec!important}.node-card .node-name{color:black}.node-card .node-relation{color:#666}.generation-level{background:#f5f5f5!important;color:black!important}.children-container::before,.child-wrapper::before,.children-connector,.spouse-line{background:#999!important}}`;
+    style.textContent = `
+        @media print {
+            /* 1. پہلے پیج کی ہر چیز کو چھپائیں */
+            body * {
+                display: none !important;
+            }
+            
+            /* 2. صرف باڈی، ٹری اسکرول کنٹینر اور اس کے اندر موجود تمام چیزوں کو ظاہر کریں */
+            body, .tree-scroll, .tree-scroll * {
+                display: block !important;
+            }
+            
+            /* 3. پرنٹ لے آؤٹ کی سیٹنگز */
+            body {
+                background: white;
+                padding: 10px;
+            }
+            
+            .tree-container {
+                box-shadow: none;
+                padding: 5px;
+                margin: 0;
+            }
+            
+            .tree-scroll {
+                overflow: visible !important;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            
+            /* 4. کارڈز اور کنکشن لائنز کے اسٹائلز */
+            .node-card {
+                box-shadow: none;
+                border: 1px solid #ccc;
+                color: black !important;
+                background: white !important;
+            }
+            
+            .node-card.male {
+                background: #e3f2fd !important;
+            }
+            
+            .node-card.female {
+                background: #fce4ec !important;
+            }
+            
+            .node-card .node-name {
+                color: black;
+            }
+            
+            .node-card .node-relation {
+                color: #666;
+            }
+            
+            .generation-level {
+                background: #f5f5f5 !important;
+                color: black !important;
+            }
+            
+            .children-container::before,
+            .child-wrapper::before,
+            .children-connector,
+            .spouse-line {
+                background: #999 !important;
+            }
+        }
+    `;
+    
     document.head.appendChild(style);
-    setTimeout(() => { window.print(); document.head.removeChild(style); showToast('✅ پرنٹ ڈائیلاگ!'); }, 300);
+    setTimeout(() => { 
+        window.print(); 
+        document.head.removeChild(style); 
+        showToast('✅ پرنٹ ڈائیلاگ!'); 
+    }, 300);
 }
 
 // ==================== SHARE ====================
