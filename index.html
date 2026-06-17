@@ -208,7 +208,9 @@ h1 { text-align: center; color: white; font-size: 1.8em; margin-bottom: 6px; tex
 
 <div class="action-bar">
     <button class="action-btn btn-save" onclick="saveTree()"><span style="font-size:1.3em">💾</span><span>محفوظ</span></button>
+    <button class="action-btn btn-load" onclick="showLoadModal()"><span style="font-size:1.3em">📂</span><span>لوڈ</span></button>
     <button class="action-btn btn-pdf" onclick="exportToPDF()"><span style="font-size:1.3em">📄</span><span>PDF</span></button>
+    <button class="action-btn btn-share" onclick="showShareModal()"><span style="font-size:1.3em">🔗</span><span>شیئر</span></button>
 </div>
 
 <div class="card">
@@ -221,11 +223,9 @@ h1 { text-align: center; color: white; font-size: 1.8em; margin-bottom: 6px; tex
             <option value="son">👦 بیٹا</option><option value="daughter">👧 بیٹی</option><option value="brother">👬 بھائی</option>
             <option value="sister">👭 بہن</option><option value="husband">🤵 شوہر</option><option value="wife">👰 بیوی</option>
             <option value="grandfather">👴 دادا/نانا</option><option value="grandmother">👵 دادی/نانی</option>
-            <option value="uncle">🧔 چچا</option><option value="aunt">👩‍🦱 پھوپھی</option>
-            <option value="uncle">🧔 ماموں</option><option value="aunt">👩‍🦱 خالہ</option>
+            <option value="uncle">🧔 چچا / ماموں</option><option value="aunt">👩‍🦱 پھوپھی / خالہ</option>
             <option value="cousin">🧑‍🤝‍🧑 کزن</option><option value="nephew">👦 بھتیجا/بھانجا</option>
-            <option value="niece">👧بھانجی</option><option value="grandson">👶 پوتا</option>
-             <option value="niece">👧بھانجی</option><option value="grandson">👶نواسہ</option>
+            <option value="niece">👧 بھانجی/بھتیجی</option><option value="grandson">👶 پوتا/نواسہ</option>
             <option value="granddaughter">👶 پوتی/نواسی</option></select></div>
         <div class="input-group"><label>👤 کس فرد سے رشتہ</label><select id="relatedTo"><option value="">-- منتخب کریں --</option></select></div>
     </div>
@@ -297,724 +297,988 @@ h1 { text-align: center; color: white; font-size: 1.8em; margin-bottom: 6px; tex
 
 <div class="card">
     <h2 class="card-title">📋 فیملی ممبرز</h2>
+    <div class="input-group" style="margin-bottom:12px;">
+        <input type="text" id="searchBar" placeholder="نام، رشتہ یا نسل سے تلاش کریں..." oninput="filterMembersList()">
+    </div>
     <div id="membersList"></div>
 </div>
 
 </div>
 
-<div class="modal-overlay" id="memberModal"><div class="modal"><span class="modal-close" onclick="closeModal('memberModal')">&times;</span><h3>👤 تفصیلات</h3><div id="modalContent"></div></div></div>
-<div class="toast" id="toast"></div>
+<div class="modal-overlay" id="memberModal">
+    <div class="modal">
+        <span class="modal-close" onclick="closeModal('memberModal')">&times;</span>
+        <h3>👤 تفصیلات</h3>
+        <div id="modalContent"></div>
+    </div>
+</div>
 
+<div class="modal-overlay" id="loadModal">
+    <div class="modal">
+        <span class="modal-close" onclick="closeModal('loadModal')">&times;</span>
+        <h3>📂 شجرہ لوڈ کریں</h3>
+        <div id="savedTreesList"></div>
+        <div class="btn-row" style="margin-top:15px;">
+            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">📥 JSON فائل امپورٹ کریں</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="shareModal">
+    <div class="modal">
+        <span class="modal-close" onclick="closeModal('shareModal')">&times;</span>
+        <h3>🔗 شجرہ شیئر کریں</h3>
+        <div class="share-grid">
+            <div class="share-option" onclick="copyLink()">
+                <div class="icon">🔗</div>
+                <h4>لنک بنائیں</h4>
+                <p>لنک کاپی کریں</p>
+            </div>
+            <div class="share-option" onclick="shareWhatsApp()">
+                <div class="icon" style="color:#25D366">💬</div>
+                <h4>WhatsApp</h4>
+                <p>واٹس ایپ پر بھیجیں</p>
+            </div>
+        </div>
+        <div id="qrSection" style="display:none; text-align:center; margin-top:15px;">
+            <div id="qrcode"></div>
+            <p style="font-size:0.8em; color:#666; margin-top:5px;">اس کیو آر کوڈ کو اسکین کر کے شجرہ امپورٹ کیا جا سکتا ہے</p>
+        </div>
+        <div id="linkSection" style="display:none;" class="share-link-box">
+            <input type="text" id="shareLinkInput" readonly>
+            <button class="btn btn-primary" style="padding:8px 12px; min-width:auto; font-size:0.85em;" onclick="copyToClipboard()">کاپی</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
 <input type="file" class="file-input" id="fileInput" accept=".json" onchange="importJSON(this)">
 
 <script>
-// ==================== PWA SERVICE WORKER ====================
-if ('serviceWorker' in navigator) {
-    const swCode = `self.addEventListener('install',e=>{e.waitUntil(self.skipWaiting())});self.addEventListener('activate',e=>{e.waitUntil(self.clients.claim())});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});`;
-    navigator.serviceWorker.register(URL.createObjectURL(new Blob([swCode],{type:'application/javascript'}))).catch(()=>{});
-}
-
-// ==================== INSTALL BANNER ====================
-let deferredPrompt = null;
-window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault(); deferredPrompt = e;
-    if (!localStorage.getItem('installDismissed')) document.getElementById('installBanner').classList.add('show');
-});
-document.getElementById('installBtn').addEventListener('click', async () => {
-    if (deferredPrompt) { deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; document.getElementById('installBanner').classList.remove('show'); }
-});
-function dismissInstall() { localStorage.setItem('installDismissed','true'); document.getElementById('installBanner').classList.remove('show'); }
-
-// ==================== DATA ====================
-let familyTree = { members: {}, root: null, corrections: [], treeName: '', treeDescription: '' };
+// ==================== CORE DATA MODEL ====================
+let familyTree = { 
+    members: {}, 
+    root: null, 
+    corrections: [], 
+    treeName: 'میرا شجرہ نسب', 
+    treeDescription: 'خودکار فیملی نیٹ ورک انجن' 
+};
 let currentCorrection = null;
+
 const urduRelations = { 
     father: 'باپ', mother: 'ماں', son: 'بیٹا', daughter: 'بیٹی', brother: 'بھائی', sister: 'بہن', 
-    husband: 'شوہر', wife: 'بیوی', grandfather: 'دادا/نانا', grandmother: 'دادی/نانی', 
-    grandson: 'پوتا/نواسہ', granddaughter: 'پوتی/نواسی', uncle: 'چچا/ماموں/تایا', aunt: 'پھوپھی/خالہ/تائی', 
+    husband: 'شوهر', wife: 'بیوی', grandfather: 'دادا/نانا', grandmother: 'دادی/نانی', 
+    grandson: 'پوتا/نواسہ', granddaughter: 'پوتی/نواسی', uncle: 'چچا/ماموں', aunt: 'پھوپھی/خالہ', 
     cousin: 'کزن', nephew: 'بھتیجا/بھانجا', niece: 'بھتیجی/بھانجی', root: 'جڑ',
     father_in_law: 'سسر', mother_in_law: 'ساس', son_in_law: 'داماد', daughter_in_law: 'بہو',
     brother_in_law: 'بہنوئی/سالا', sister_in_law: 'بھابھی/نند/سالی',
     great_grandfather: 'پر دادا/پر نانا', great_grandmother: 'پر دادی/پر نانی',
-    great_grandson: 'پر پوتا/پر نواسہ', great_granddaughter: 'پر پوتی/پر نواسی'
+    great_grandson: 'پر پوتا/پر نواسہ', great_granddaughter: 'پر پوتی/پر نواسی',
+    step_father: 'सौतेला बाप / سوتیلا باپ', step_mother: 'سوتیلی ماں', step_brother: 'سوتیلا بھائی',
+    step_sister: 'سوتیلی بہن', step_son: 'سوتیلا بیٹا', step_daughter: 'سوتیلی بیٹی',
+    adopted_child: 'متبنیٰ (گود لیا بچہ)', ancestor: 'جدِ امجد (بزرگ)', descendant: 'نسل / اولاد', self: 'خود'
 };
 
-// ==================== INIT ====================
-document.addEventListener('DOMContentLoaded', () => { loadFromStorage(); updateAll(); });
-document.getElementById('memberRelation').addEventListener('change', function() { document.getElementById('spouseSection').classList.toggle('show', this.value === 'husband' || this.value === 'wife'); });
+// ==================== INIT & EVENT LISTENERS ====================
+document.addEventListener('DOMContentLoaded', () => {
+    loadFromStorage();
+    updateAll();
+});
 
-// ==================== CORE ====================
+document.getElementById('memberRelation').addEventListener('change', function() {
+    document.getElementById('spouseSection').classList.toggle('show', this.value === 'husband' || this.value === 'wife');
+});
+
+function updateAll() {
+    sanitizeAndRebuildCache();
+    recalculateGenerations();
+    updateSelectors();
+    updateTreeDisplay();
+    updateMembersList();
+    updateFamilyView();
+    updateCorrectionHistory();
+    renderStats();
+}
+
+// ==================== REBUILD AND VALIDATE GRAPH CACHE ====================
+function sanitizeAndRebuildCache() {
+    const members = familyTree.members;
+    
+    // Ensure every person has standard structure fields
+    for (const id in members) {
+        const p = members[id];
+        if (!p.id) p.id = id;
+        if (!p.spouseIds) p.spouseIds = [];
+        if (!p.childrenIds) p.childrenIds = [];
+        if (!p.siblingsIds) p.siblingsIds = [];
+        if (!p.createdAt) p.createdAt = Date.now();
+        
+        // Clean stale biological arrays to keep consistent graph structure
+        p.childrenIds = [];
+        p.siblingsIds = [];
+    }
+
+    // Bi-directional linkage reconstruction
+    for (const id in members) {
+        const p = members[id];
+        
+        // Father biological injection
+        if (p.fatherId && members[p.fatherId]) {
+            if (!members[p.fatherId].childrenIds.includes(id)) {
+                members[p.fatherId].childrenIds.push(id);
+            }
+        } else {
+            p.fatherId = null;
+        }
+
+        // Mother biological injection
+        if (p.motherId && members[p.motherId]) {
+            if (!members[p.motherId].childrenIds.includes(id)) {
+                members[p.motherId].childrenIds.push(id);
+            }
+        } else {
+            p.motherId = null;
+        }
+
+        // Reconstruct uniform spouse mutual arrays
+        p.spouseIds = p.spouseIds.filter(sid => members[sid]);
+        p.spouseIds.forEach(sid => {
+            if (!members[sid].spouseIds.includes(id)) {
+                members[sid].spouseIds.push(id);
+            }
+        });
+    }
+
+    // Build automated accurate sibling calculation arrays (including half-siblings)
+    for (const id in members) {
+        const p = members[id];
+        const sibs = new Set();
+        if (p.fatherId && members[p.fatherId]) {
+            members[p.fatherId].childrenIds.forEach(cid => { if (cid !== id) sibs.add(cid); });
+        }
+        if (p.motherId && members[p.motherId]) {
+            members[p.motherId].childrenIds.forEach(cid => { if (cid !== id) sibs.add(cid); });
+        }
+        p.siblingsIds = Array.from(sibs);
+    }
+}
+
+// ==================== GENERATION RECAlCULATION ENGINE ====================
+function recalculateGenerations() {
+    const members = familyTree.members;
+    if (!familyTree.root || !members[familyTree.root]) {
+        for (const id in members) members[id].generation = 0;
+        return;
+    }
+
+    // Set all generations relative to stable multi-generation level
+    const visited = new Set();
+    const queue = [familyTree.root];
+    members[familyTree.root].generation = 0;
+    visited.add(familyTree.root);
+
+    while (queue.length > 0) {
+        const currId = queue.shift();
+        const currNode = members[currId];
+        const currGen = currNode.generation;
+
+        // Spread to biological children
+        currNode.childrenIds.forEach(cid => {
+            if (!visited.has(cid) && members[cid]) {
+                members[cid].generation = currGen + 1;
+                visited.add(cid);
+                queue.push(cid);
+            }
+        });
+
+        // Pull parents down/up safely
+        if (currNode.fatherId && !visited.has(currNode.fatherId) && members[currNode.fatherId]) {
+            members[currNode.fatherId].generation = currGen - 1;
+            visited.add(currNode.fatherId);
+            queue.push(currNode.fatherId);
+        }
+        if (currNode.motherId && !visited.has(currNode.motherId) && members[currNode.motherId]) {
+            members[currNode.motherId].generation = currGen - 1;
+            visited.add(currNode.motherId);
+            queue.push(currNode.motherId);
+        }
+
+        // Align Spouses seamlessly
+        currNode.spouseIds.forEach(sid => {
+            if (!visited.has(sid) && members[sid]) {
+                members[sid].generation = currGen;
+                visited.add(sid);
+                queue.push(sid);
+            }
+        });
+    }
+
+    // Capture floating standalone subtrees
+    for (const id in members) {
+        if (!visited.has(id)) {
+            members[id].generation = 0;
+        }
+    }
+}
+
+// ==================== CORE GENEALOGY WRITE ACTIONS ====================
 function addMember() {
     const name = document.getElementById('memberName').value.trim();
     const gender = document.getElementById('memberGender').value;
     const relation = document.getElementById('memberRelation').value;
     const relatedToId = document.getElementById('relatedTo').value;
-    if (!name) { showToast('❌ نام درج کریں!'); return; }
-    if (relation !== 'root' && !relatedToId) { showToast('❌ فرد منتخب کریں!'); return; }
-    const id = 'm_' + Date.now().toString(36);
-    const member = { id, name, gender, relation, relatedTo: relatedToId, spouse: null, children: [], parents: [], siblings: [], generation: 0 };
-    const sName = document.getElementById('spouseName').value.trim();
-    if ((relation === 'husband' || relation === 'wife') && sName) {
-        member.spouse = { id: 's_' + Date.now(), name: sName, gender: document.getElementById('spouseGender').value };
+
+    if (!name) {
+        showToast('❌ نام درج کریں!');
+        return;
     }
-    familyTree.members[id] = member;
-    if (relation === 'root') { familyTree.root = id; member.generation = 1; }
-    else {
-        const rel = familyTree.members[relatedToId];
-        if (rel) {
-            if (relation === 'son' || relation === 'daughter') { member.generation = rel.generation + 1; rel.children.push(id); member.parents.push(relatedToId); }
-            else if (relation === 'father' || relation === 'mother') { member.generation = rel.generation - 1; rel.parents.push(id); member.children.push(relatedToId); }
-            else if (relation === 'brother' || relation === 'sister') { member.generation = rel.generation; member.parents = [...rel.parents]; rel.siblings.push(id); member.siblings.push(relatedToId); }
-            else if (relation === 'husband' || relation === 'wife') { member.generation = rel.generation; rel.spouse = { id, name, gender }; }
-            else if (relation === 'grandfather' || relation === 'grandmother') { member.generation = rel.generation - 2; rel.parents.push(id); }
-            else if (relation === 'grandson' || relation === 'granddaughter') { member.generation = rel.generation + 2; rel.children.push(id); }
-            else if (relation === 'uncle' || relation === 'aunt') { member.generation = rel.generation - 1; }
-            else if (relation === 'nephew' || relation === 'niece') { member.generation = rel.generation + 1; }
-            else if (relation === 'cousin') { member.generation = rel.generation; }
+
+    const newId = 'm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const newPerson = {
+        id: newId,
+        name: name,
+        gender: gender,
+        fatherId: null,
+        motherId: null,
+        spouseIds: [],
+        childrenIds: [],
+        siblingsIds: [],
+        birthDate: '',
+        deathDate: '',
+        notes: '',
+        generation: 0,
+        createdAt: Date.now(),
+        relation: relation,
+        relatedTo: relatedToId
+    };
+
+    if (relation === 'root' || !familyTree.root) {
+        familyTree.members[newId] = newPerson;
+        familyTree.root = newId;
+    } else {
+        const anchor = familyTree.members[relatedToId];
+        if (!anchor) {
+            showToast('❌ متعلقہ فرد تلاش کرنے میں ناکامی!');
+            return;
+        }
+
+        // Check for basic duplicate injection safety bounds
+        if (relation === 'husband' && anchor.gender === 'male') { showToast('❌ غیر موزوں ازدواجی جوڑا!'); return; }
+        if (relation === 'wife' && anchor.gender === 'female') { showToast('❌ غیر موزوں ازدواجی جوڑا!'); return; }
+
+        familyTree.members[newId] = newPerson;
+
+        // Apply strict logical tree wiring rules
+        if (relation === 'father') {
+            anchor.fatherId = newId;
+        } else if (relation === 'mother') {
+            anchor.motherId = newId;
+        } else if (relation === 'son' || relation === 'daughter') {
+            if (anchor.gender === 'male') {
+                newPerson.fatherId = anchor.id;
+                if (anchor.spouseIds.length > 0) newPerson.motherId = anchor.spouseIds[0];
+            } else {
+                newPerson.motherId = anchor.id;
+                if (anchor.spouseIds.length > 0) newPerson.fatherId = anchor.spouseIds[0];
+            }
+        } else if (relation === 'brother' || relation === 'sister') {
+            newPerson.fatherId = anchor.fatherId;
+            newPerson.motherId = anchor.motherId;
+        } else if (relation === 'husband' || relation === 'wife') {
+            anchor.spouseIds.push(newId);
+            newPerson.spouseIds.push(anchor.id);
+        } else if (relation === 'grandfather') {
+            const fId = anchor.fatherId || 'f_' + Date.now();
+            if (!familyTree.members[fId]) {
+                familyTree.members[fId] = { id: fId, name: 'والد ' + anchor.name, gender: 'male', fatherId: newId, motherId: null, spouseIds: [], childrenIds: [], siblingsIds: [], generation: anchor.generation - 1 };
+                anchor.fatherId = fId;
+            } else {
+                familyTree.members[fId].fatherId = newId;
+            }
+        } else if (relation === 'grandmother') {
+            const fId = anchor.fatherId || 'f_' + Date.now();
+            if (!familyTree.members[fId]) {
+                familyTree.members[fId] = { id: fId, name: 'والد ' + anchor.name, gender: 'male', fatherId: null, motherId: newId, spouseIds: [], childrenIds: [], siblingsIds: [], generation: anchor.generation - 1 };
+                anchor.fatherId = fId;
+            } else {
+                familyTree.members[fId].motherId = newId;
+            }
+        } else if (relation === 'grandson' || relation === 'granddaughter') {
+            const dummyChildId = 'c_' + Date.now();
+            if (anchor.childrenIds.length === 0) {
+                familyTree.members[dummyChildId] = { id: dummyChildId, name: 'اولاد ' + anchor.name, gender: 'male', fatherId: anchor.gender === 'male' ? anchor.id : null, motherId: anchor.gender === 'female' ? anchor.id : null, spouseIds: [], childrenIds: [newId], siblingsIds: [], generation: anchor.generation + 1 };
+                newPerson.fatherId = dummyChildId;
+            } else {
+                newPerson.fatherId = anchor.childrenIds[0];
+            }
+        } else if (relation === 'uncle' || relation === 'aunt') {
+            if (anchor.fatherId) {
+                newPerson.fatherId = anchor.fatherId;
+            } else {
+                const gId = 'g_' + Date.now();
+                familyTree.members[gId] = { id: gId, name: 'بزرگ ' + anchor.name, gender: 'male', fatherId: null, motherId: null, spouseIds: [], childrenIds: [anchor.id, newId], siblingsIds: [], generation: anchor.generation - 2 };
+                anchor.fatherId = gId;
+                newPerson.fatherId = gId;
+            }
+        } else if (relation === 'nephew' || relation === 'niece') {
+            if (anchor.siblingsIds.length > 0) {
+                const sib = familyTree.members[anchor.siblingsIds[0]];
+                if (sib.gender === 'male') newPerson.fatherId = sib.id; else newPerson.motherId = sib.id;
+            } else {
+                const sibId = 's_' + Date.now();
+                familyTree.members[sibId] = { id: sibId, name: 'بھائی/بہن ' + anchor.name, gender: 'male', fatherId: anchor.fatherId, motherId: anchor.motherId, spouseIds: [], childrenIds: [newId], siblingsIds: [], generation: anchor.generation };
+                newPerson.fatherId = sibId;
+            }
+        } else if (relation === 'cousin') {
+            if (anchor.fatherId && familyTree.members[anchor.fatherId]?.siblingsIds?.length > 0) {
+                const uncleId = familyTree.members[anchor.fatherId].siblingsIds[0];
+                newPerson.fatherId = uncleId;
+            } else {
+                const uId = 'u_' + Date.now();
+                familyTree.members[uId] = { id: uId, name: 'چچا/ماموں ' + anchor.name, gender: 'male', fatherId: null, motherId: null, spouseIds: [], childrenIds: [newId], siblingsIds: [], generation: anchor.generation - 1 };
+                newPerson.fatherId = uId;
+            }
         }
     }
-    saveToStorage(); updateAll(); resetForm();
+
+    // Direct Inline Dynamic handling of concurrent instant Spouses
+    if (document.getElementById('spouseSection').classList.contains('show')) {
+        const sName = document.getElementById('spouseName').value.trim();
+        const sGender = document.getElementById('spouseGender').value;
+        if (sName) {
+            const sId = 'sp_' + Date.now();
+            familyTree.members[sId] = {
+                id: sId, name: sName, gender: sGender, fatherId: null, motherId: null,
+                spouseIds: [newId], childrenIds: [], siblingsIds: [], generation: newPerson.generation, createdAt: Date.now()
+            };
+            newPerson.spouseIds.push(sId);
+        }
+    }
+
+    saveToStorage();
+    updateAll();
+    resetForm();
     showToast('✅ ' + name + ' شامل ہو گیا!');
+}
+
+function deleteMember(mid) {
+    if (!confirm('کیا آپ واقعی اس فرد کو حذف کرنا چاہتے ہیں؟ تمام متعلقہ رشتے خودکار درست ہو جائیں گے۔')) return;
+    
+    const members = familyTree.members;
+    if (!members[mid]) return;
+
+    // Disconnect parents
+    for (const id in members) {
+        if (members[id].fatherId === mid) members[id].fatherId = null;
+        if (members[id].motherId === mid) members[id].motherId = null;
+        members[id].spouseIds = members[id].spouseIds.filter(sid => sid !== mid);
+    }
+
+    delete members[mid];
+    if (familyTree.root === mid) {
+        familyTree.root = Object.keys(members).length ? Object.keys(members)[0] : null;
+    }
+
+    saveToStorage();
+    updateAll();
+    closeModal('memberModal');
+    showToast('🗑️ فرد کو کامیابی سے حذف کر دیا گیا!');
+}
+
+function updateMemberField(mid, field, val) {
+    if (familyTree.members[mid]) {
+        familyTree.members[mid][field] = val;
+        saveToStorage();
+        // Skip heavy refresh cycles for small key triggers
+    }
+}
+
+// ==================== RENDERING & UI SYNC ENGINE ====================
+function updateSelectors() {
+    const s1 = document.getElementById('relatedTo');
+    const s2 = document.getElementById('person1');
+    const s3 = document.getElementById('person2');
+    
+    let opts = '<option value="">-- منتخب کریں --</option>';
+    const items = Object.values(familyTree.members).sort((a,b) => a.name.localeCompare(b.name));
+    
+    items.forEach(m => {
+        opts += `<option value="${m.id}">${m.name} (نسل ${m.generation || 0})</option>`;
+    });
+
+    s1.innerHTML = opts;
+    s2.innerHTML = opts;
+    s3.innerHTML = opts;
 }
 
 function updateTreeDisplay() {
     const el = document.getElementById('treeDisplay');
-    if (!familyTree.root) { el.innerHTML = '<div class="empty-state"><div class="icon">🌳</div><h3>شجرہ نسب خالی ہے</h3><p>اوپر سے نیا فرد شامل کریں</p></div>'; return; }
-    el.innerHTML = buildTreeNode(familyTree.root);
+    if (!familyTree.root || !familyTree.members[familyTree.root]) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">🌳</div><h3>شجرہ نسب خالی ہے</h3><p>اوپر سے نیا فرد شامل کریں</p></div>';
+        return;
+    }
+    // Render top-down robust recursive structural tree node tree representation safely
+    el.innerHTML = buildTreeNode(familyTree.root, new Set());
 }
 
-function buildTreeNode(mid) {
-    const m = familyTree.members[mid]; if (!m) return '';
+function buildTreeNode(mid, visited) {
+    if (visited.has(mid)) return ''; 
+    visited.add(mid);
+
+    const m = familyTree.members[mid];
+    if (!m) return '';
+
     let h = '<div class="node">';
-    h += `<div class="node-card ${m.gender}" onclick="showMemberDetails('${mid}')"><div class="node-name">${m.name}</div><div class="node-relation">${urduRelations[m.relation]||m.relation}</div><div class="generation-level">نسل ${m.generation}</div></div>`;
-    if (m.spouse) { h += `<div class="spouse-row"><div class="spouse-line"></div><div class="node-card ${m.spouse.gender}"><div class="node-name">${m.spouse.name}</div><div class="node-relation">${m.spouse.gender==='male'?'شوہر':'بیوی'}</div></div></div>`; }
-    if (m.children.length > 0) { h += '<div class="children-container"><div class="children-connector"></div>'; m.children.forEach(cid => { h += `<div class="child-wrapper">${buildTreeNode(cid)}</div>`; }); h += '</div>'; }
-    h += '</div>'; return h;
+    h += `<div class="node-card ${m.gender}" onclick="showMemberDetails('${mid}')">
+            <div class="node-name">${m.name}</div>
+            <div class="node-relation">${m.id === familyTree.root ? 'جڑ' : (m.gender === 'male' ? 'مرد' : 'خاتون')}</div>
+            <div class="generation-level">نسل ${m.generation || 0}</div>
+          </div>`;
+
+    // Render parallel inline horizontal spouse chains
+    if (m.spouseIds && m.spouseIds.length > 0) {
+        m.spouseIds.forEach(sid => {
+            const sp = familyTree.members[sid];
+            if (sp) {
+                h += `<div class="spouse-row">
+                        <div class="spouse-line"></div>
+                        <div class="node-card ${sp.gender}" onclick="showMemberDetails('${sid}')">
+                            <div class="node-name">${sp.name}</div>
+                            <div class="node-relation">${sp.gender === 'male' ? 'شوهر' : 'بیوی'}</div>
+                        </div>
+                      </div>`;
+            }
+        });
+    }
+
+    // Unlimited children rendering loop logic block
+    if (m.childrenIds && m.childrenIds.length > 0) {
+        h += '<div class="children-container"><div class="children-connector"></div>';
+        m.childrenIds.forEach(cid => {
+            h += `<div class="child-wrapper">${buildTreeNode(cid, visited)}</div>`;
+        });
+        h += '</div>';
+    }
+
+    h += '</div>';
+    return h;
 }
 
 function updateMembersList() {
+    filterMembersList();
+}
+
+function filterMembersList() {
     const el = document.getElementById('membersList');
+    const query = document.getElementById('searchBar')?.value.toLowerCase().trim() || '';
     const members = Object.values(familyTree.members);
-    if (!members.length) { el.innerHTML = '<div class="empty-state"><p style="color:#ccc">کوئی فرد نہیں</p></div>'; return; }
-    el.innerHTML = members.map(m => {
-        const rt = m.relation === 'root' ? 'جڑ' : urduRelations[m.relation];
-        const rtn = m.relatedTo ? familyTree.members[m.relatedTo]?.name : '';
-        return `<div class="member-item"><div class="member-info"><div class="member-avatar ${m.gender}">${m.name.charAt(0)}</div><div class="member-details"><h4>${m.name}</h4><p>${rt}${rtn?' · '+rtn:''} · نسل ${m.generation}</p></div></div><div class="member-actions"><button class="btn-icon" style="background:#e3f2fd;color:#1976d2" onclick="showMemberDetails('${m.id}')">👁️</button><button class="btn-icon" style="background:#ffebee;color:#c62828" onclick="deleteMember('${m.id}')">🗑️</button></div></div>`;
-    }).join('');
-}
 
-function updateStats() {
-    const members = Object.values(familyTree.members);
-    document.getElementById('totalMembers').textContent = members.length;
-    document.getElementById('totalMales').textContent = members.filter(m=>m.gender==='male').length;
-    document.getElementById('totalFemales').textContent = members.filter(m=>m.gender==='female').length;
-    document.getElementById('totalGenerations').textContent = members.length ? Math.max(...members.map(m=>m.generation)) - Math.min(...members.map(m=>m.generation)) + 1 : 0;
-}
+    if (!members.length) {
+        el.innerHTML = '<div class="empty-state"><p style="color:#ccc">کوئی فرد نہیں</p></div>';
+        return;
+    }
 
-function updateDropdowns() {
-    let h = '<option value="">-- منتخب کریں --</option>';
-    Object.values(familyTree.members).forEach(m => { h += `<option value="${m.id}">${m.name} (${urduRelations[m.relation]||m.relation})</option>`; });
-    document.getElementById('relatedTo').innerHTML = h;
-    const opts = '<option value="">-- منتخب کریں --</option>' + Object.values(familyTree.members).map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
-    document.getElementById('person1').innerHTML = opts;
-    document.getElementById('person2').innerHTML = opts;
-}
+    const filtered = members.filter(m => {
+        const matchesName = m.name.toLowerCase().includes(query);
+        const matchesGen = ('نسل ' + m.generation).includes(query) || String(m.generation) === query;
+        const matchesGender = (m.gender === 'male' ? 'مرد' : 'خاتون').includes(query);
+        return matchesName || matchesGen || matchesGender;
+    });
 
-function updateAll() { updateTreeDisplay(); updateMembersList(); updateStats(); updateDropdowns(); updateCorrectionHistory(); updateFamilyView(); }
-
-// ==================== FAMILY VIEW ====================
-function showFamilyView() {
-    const card = document.getElementById('familyViewCard');
-    card.style.display = card.style.display === 'none' ? 'block' : 'none';
-    if (card.style.display === 'block') updateFamilyView();
+    el.innerHTML = filtered.map(m => `
+        <div class="member-item">
+            <div class="member-info">
+                <div class="member-avatar ${m.gender}">${m.gender === 'male' ? '👨' : '👩'}</div>
+                <div class="member-details">
+                    <h4>${m.name}</h4>
+                    <p>نسل ${m.generation || 0} · ${m.gender === 'male' ? 'مرد' : 'خاتون'}</p>
+                </div>
+            </div>
+            <div class="member-actions">
+                <button class="btn-icon" style="background:#e3f2fd;color:#1976d2" onclick="showMemberDetails('${m.id}')">👁️</button>
+                <button class="btn-icon" style="background:#ffebee;color:#c62828" onclick="deleteMember('${m.id}')">🗑️</button>
+            </div>
+        </div>
+    `).join('');
 }
 
 function updateFamilyView() {
     const el = document.getElementById('familyViewContent');
+    const card = document.getElementById('familyViewCard');
     const members = Object.values(familyTree.members);
-    if (!members.length) { el.innerHTML = '<div class="empty-state"><p style="color:#ccc">کوئی فیملی نہیں</p></div>'; return; }
 
-    let couples = [];
-    const processed = new Set();
+    if (!members.length) {
+        card.style.display = 'none';
+        return;
+    }
+    card.style.display = 'block';
 
-    members.forEach(m => {
-        if (processed.has(m.id)) return;
-        if (m.spouse && m.spouse.name) {
-            const spouseMember = members.find(x => x.name === m.spouse.name || (m.spouse.id && x.id === m.spouse.id));
-            if (spouseMember) {
-                processed.add(m.id);
-                processed.add(spouseMember.id);
-                const children = m.children.filter(cid => {
-                    const child = familyTree.members[cid];
-                    return child && (child.parents.includes(m.id) || child.parents.includes(spouseMember.id));
-                });
-                couples.push({ husband: m.gender === 'male' ? m : spouseMember, wife: m.gender === 'female' ? m : spouseMember, children });
-            } else {
-                processed.add(m.id);
-                const children = m.children;
-                couples.push({ husband: m.gender === 'male' ? m : { name: m.spouse.name, gender: m.spouse.gender, id: m.spouse.id }, wife: m.gender === 'female' ? m : { name: m.spouse.name, gender: m.spouse.gender, id: m.spouse.id }, children });
-            }
-        }
-    });
-
-    const singleParents = members.filter(m => !processed.has(m.id) && m.children.length > 0);
-
+    const processedCouples = new Set();
     let html = '';
 
-    if (couples.length) {
-        html += couples.map(c => {
-            const childTags = c.children.map(cid => {
-                const child = familyTree.members[cid];
-                return child ? `<span class="child-tag ${child.gender}-tag">${child.name} (${child.gender==='male'?'👦':'👧'})</span>` : '';
-            }).join('');
-            return `<div class="family-card">
-                <div class="family-header">
-                    <div class="family-couple">
-                        <span class="couple-name">${c.husband.name}</span>
-                        <span class="heart">❤️</span>
-                        <span class="couple-name">${c.wife.name}</span>
+    members.forEach(m => {
+        if (m.spouseIds && m.spouseIds.length > 0) {
+            m.spouseIds.forEach(sid => {
+                const coupleKey = [m.id, sid].sort().join('-');
+                if (processedCouples.has(coupleKey)) return;
+                processedCouples.add(coupleKey);
+
+                const spouse = familyTree.members[sid];
+                if (!spouse) return;
+
+                const husband = m.gender === 'male' ? m : spouse;
+                const wife = m.gender === 'female' ? m : spouse;
+
+                // Children belonging biologically to either or both parents
+                const unionChildren = Array.from(new Set([...husband.childrenIds, ...wife.childrenIds]))
+                    .map(cid => familyTree.members[cid]).filter(Boolean);
+
+                const childTags = unionChildren.map(c => `
+                    <span class="child-tag ${c.gender}-tag">${c.name} (${c.gender === 'male' ? '👦 بیٹا' : '👧 بیٹی'})</span>
+                `).join('');
+
+                html += `
+                    <div class="family-card">
+                        <div class="family-header">
+                            <div class="family-couple">
+                                <span class="couple-name">${husband.name}</span>
+                                <span class="heart">❤️</span>
+                                <span class="couple-name">${wife.name}</span>
+                            </div>
+                            <span class="children-count">${unionChildren.length} اولاد</span>
+                        </div>
+                        <div class="children-list">
+                            ${childTags || '<span style="color:#aaa; font-size:0.8em;">کوئی اولاد درج نہیں</span>'}
+                        </div>
                     </div>
-                    <span class="children-count">${c.children.length} بچے</span>
-                </div>
-                ${c.children.length ? `<div class="children-list">${childTags}</div>` : '<p style="color:#aaa;font-size:0.8em;margin-top:8px">کوئی بچہ نہیں</p>'}
-            </div>`;
-        }).join('');
-    }
+                `;
+            });
+        }
+    });
 
-    if (singleParents.length) {
-        html += singleParents.map(m => {
-            const children = m.children.map(cid => familyTree.members[cid]).filter(Boolean);
-            const childTags = children.map(c => `<span class="child-tag ${c.gender}-tag">${c.name} (${c.gender==='male'?'👦':'👧'})</span>`).join('');
-            return `<div class="family-card">
-                <div class="family-header">
-                    <div class="family-couple">
-                        <span class="couple-name">${m.name}</span>
-                        <span style="color:#888">(${m.gender==='male'?'مرد':'خاتون'})</span>
-                    </div>
-                    <span class="children-count">${children.length} بچے</span>
-                </div>
-                <div class="children-list">${childTags}</div>
-            </div>`;
-        }).join('');
-    }
-
-    if (!couples.length && !singleParents.length) {
-        html = '<div class="empty-state"><p style="color:#ccc">کوئی فیملی نہیں</p></div>';
-    }
-
-    el.innerHTML = html;
+    el.innerHTML = html || '<div class="empty-state"><p style="color:#ccc">کوئی شادی شدہ جوڑا نہیں ملا</p></div>';
 }
 
-// ==================== SMART RELATION CALCULATOR ====================
+function renderStats() {
+    const members = Object.values(familyTree.members);
+    const total = members.length;
+    const males = members.filter(m => m.gender === 'male').length;
+    const females = members.filter(m => m.gender === 'female').length;
+    
+    let maxGen = 0, minGen = 0;
+    members.forEach(m => {
+        if (m.generation > maxGen) maxGen = m.generation;
+        if (m.generation < minGen) minGen = m.generation;
+    });
+
+    document.getElementById('totalMembers').textContent = total;
+    document.getElementById('totalGenerations').textContent = total ? (maxGen - minGen + 1) : 0;
+    document.getElementById('totalMales').textContent = males;
+    document.getElementById('totalFemales').textContent = females;
+}
+
+// ==================== ADVANCED HIGH-SPEED RELATION ENGINE ====================
 function calculateRelation() {
-    const p1 = document.getElementById('person1').value, p2 = document.getElementById('person2').value;
-    const res = document.getElementById('relationResult'), path = document.getElementById('pathDisplay');
-    document.getElementById('correctionBox').classList.remove('show');
-    if (!p1 || !p2) { showToast('❌ دونوں افراد منتخب کریں!'); return; }
-    if (p1 === p2) { res.innerHTML = '❌ ایک ہی فرد!'; res.classList.add('show'); path.classList.remove('show'); return; }
+    const p1 = document.getElementById('person1').value;
+    const p2 = document.getElementById('person2').value;
+    const res = document.getElementById('relationResult');
+    const pathBox = document.getElementById('pathDisplay');
 
-    const pt = findPath(p1, p2);
-    let rel;
-    if (pt) {
-        rel = calcRelFromPath(pt);
-    } else {
-        rel = inferRelation(p1, p2);
+    if (!p1 || !p2) {
+        showToast('❌ دونوں افراد کو منتخب کریں!');
+        return;
     }
 
-    const m1 = familyTree.members[p1], m2 = familyTree.members[p2];
-    const ec = familyTree.corrections.find(c => (c.p1===p1&&c.p2===p2)||(c.p1===p2&&c.p2===p1));
-    let dr = rel, ic = false;
-    if (ec) { dr = urduRelations[ec.cr]||ec.cr; ic = true; }
-
-    res.innerHTML = `<strong>${m1.name}</strong> → <strong>${m2.name}</strong><br><span style="font-size:1.3em;display:block;margin-top:8px">${dr}</span>${ic?'<span style="font-size:0.8em;opacity:0.8">✏️ درست شدہ</span>':''}<br><button class="btn btn-warning" style="margin-top:12px;padding:10px 18px;font-size:0.88em" onclick="showCorrection('${p1}','${p2}','${rel}')">✏️ درست کریں</button>`;
-
-    if (pt) {
-        let ptTxt = 'راستہ: ';
-        pt.forEach((s,i) => { ptTxt += familyTree.members[s.id].name; if (i < pt.length-1) ptTxt += ` → ${urduRelations[s.rel]||s.rel} → `; });
-        path.innerHTML = ptTxt; path.classList.add('show');
-    } else {
-        path.innerHTML = '💡 خودکار شناخت: خاندانی ساخت کے مطابق رشتہ معلوم کیا گیا'; path.classList.add('show');
+    if (p1 === p2) {
+        res.innerHTML = `<strong>${familyTree.members[p1].name}</strong> کا خود سے رشتہ: <br><span style="font-size:1.3em">${urduRelations.self}</span>`;
+        res.classList.add('show');
+        pathBox.style.display = 'none';
+        return;
     }
 
+    // Direct Check for user-override corrections
+    const customMatch = familyTree.corrections.find(c => (c.p1 === p1 && c.p2 === p2));
+    if (customMatch) {
+        res.innerHTML = `<strong>${familyTree.members[p1].name}</strong> ➔ <strong>${familyTree.members[p2].name}</strong><br><span style="font-size:1.3em;display:block;margin-top:8px">${urduRelations[customMatch.cr] || customMatch.cr}</span><span style="font-size:0.8em;opacity:0.8">✏️ درست شدہ رشتہ</span><br><button class="btn btn-warning" style="margin-top:12px;padding:6px 12px;font-size:0.78em" onclick="showCorrection('${p1}','${p2}','${customMatch.cr}')">✏️ دوبارہ درست کریں</button>`;
+        res.classList.add('show');
+        pathBox.style.display = 'none';
+        return;
+    }
+
+    const graphResult = traverseGraphBFS(p1, p2);
+    const urduRelStr = translatePathToRelation(graphResult.path, familyTree.members[p2].gender);
+
+    res.innerHTML = `<strong>${familyTree.members[p1].name}</strong> ➔ <strong>${familyTree.members[p2].name}</strong><br><span style="font-size:1.3em;display:block;margin-top:8px">${urduRelStr}</span><br><button class="btn btn-warning" style="margin-top:12px;padding:6px 12px;font-size:0.78em" onclick="showCorrection('${p1}','${p2}','${urduRelStr}')">✏️ رشتہ درست کریں</button>`;
     res.classList.add('show');
-    currentCorrection = { p1, p2, cr: rel };
+
+    if (graphResult.namesPath.length > 0) {
+        pathBox.innerHTML = '📌 راستہ: ' + graphResult.namesPath.join(' ➔ ');
+        pathBox.classList.add('show');
+    } else {
+        pathBox.style.display = 'none';
+    }
 }
 
-// Smart relation inference using family structure
-function inferRelation(p1, p2) {
-    const m1 = familyTree.members[p1], m2 = familyTree.members[p2];
-    if (!m1 || !m2) return 'رشتہ نہیں ملا';
+function traverseGraphBFS(startId, endId) {
+    const queue = [[startId]];
+    const visited = new Set([startId]);
+    const members = familyTree.members;
 
-    // Check if they share parents -> siblings
-    const commonParents = m1.parents.filter(pid => m2.parents.includes(pid));
-    if (commonParents.length > 0) {
-        return m2.gender === 'male' ? 'بھائی' : 'بہن';
-    }
+    while (queue.length > 0) {
+        const path = queue.shift();
+        const nodeId = path[path.length - 1];
 
-    // Check if m2 is parent of m1
-    if (m1.parents.includes(p2)) {
-        return m2.gender === 'male' ? 'باپ' : 'ماں';
-    }
-
-    // Check if m1 is parent of m2
-    if (m2.parents.includes(p1)) {
-        return m2.gender === 'male' ? 'بیٹا' : 'بیٹی';
-    }
-
-    // Check if m2 is grandparent of m1
-    for (const pid of m1.parents) {
-        const parent = familyTree.members[pid];
-        if (parent && parent.parents.includes(p2)) {
-            return m2.gender === 'male' ? 'دادا/نانا' : 'دادی/نانی';
+        if (nodeId === endId) {
+            const namesPath = path.map(id => members[id]?.name || id);
+            return { path, namesPath };
         }
-    }
 
-    // Check if m1 is grandparent of m2
-    for (const pid of m2.parents) {
-        const parent = familyTree.members[pid];
-        if (parent && parent.parents.includes(p1)) {
-            return m2.gender === 'male' ? 'پوتا/نواسہ' : 'پوتی/نواسی';
-        }
-    }
+        const node = members[nodeId];
+        if (!node) continue;
 
-    // Check if m2 is uncle/aunt of m1 (parent's sibling)
-    for (const pid of m1.parents) {
-        const parent = familyTree.members[pid];
-        if (parent && parent.siblings.includes(p2)) {
-            return m2.gender === 'male' ? 'چچا/ماموں/تایا' : 'پھوپھی/خالہ/تائی';
-        }
-    }
+        // Collect biological and legal step neighbors immediately adjacent
+        const neighbors = [];
+        if (node.fatherId) neighbors.push(node.fatherId);
+        if (node.motherId) neighbors.push(node.motherId);
+        node.spouseIds.forEach(sid => neighbors.push(sid));
+        node.childrenIds.forEach(cid => neighbors.push(cid));
+        node.siblingsIds.forEach(sid => neighbors.push(sid));
 
-    // Check if m1 is uncle/aunt of m2 (sibling of m2's parent)
-    for (const pid of m2.parents) {
-        const parent = familyTree.members[pid];
-        if (parent && parent.siblings.includes(p1)) {
-            return m2.gender === 'male' ? 'بھتیجا/بھانجا' : 'بھتیجی/بھانجی';
-        }
-    }
-
-    // Check if they are spouses
-    if (m1.spouse && (m1.spouse.id === p2 || m1.spouse.name === m2.name)) {
-        return m2.gender === 'male' ? 'شوہر' : 'بیوی';
-    }
-    if (m2.spouse && (m2.spouse.id === p1 || m2.spouse.name === m1.name)) {
-        return m2.gender === 'male' ? 'شوہر' : 'بیوی';
-    }
-
-    // Check cousins (share grandparents)
-    const m1Grandparents = new Set();
-    m1.parents.forEach(pid => {
-        const parent = familyTree.members[pid];
-        if (parent) parent.parents.forEach(gpid => m1Grandparents.add(gpid));
-    });
-    const m2Grandparents = new Set();
-    m2.parents.forEach(pid => {
-        const parent = familyTree.members[pid];
-        if (parent) parent.parents.forEach(gpid => m2Grandparents.add(gpid));
-    });
-    const commonGrandparents = [...m1Grandparents].filter(gpid => m2Grandparents.has(gpid));
-    if (commonGrandparents.length > 0) {
-        return 'کزن';
-    }
-
-    // Check if m2 is great-grandparent
-    for (const pid of m1.parents) {
-        const parent = familyTree.members[pid];
-        if (parent) {
-            for (const gpid of parent.parents) {
-                const grandparent = familyTree.members[gpid];
-                if (grandparent && grandparent.parents.includes(p2)) {
-                    return m2.gender === 'male' ? 'پر دادا/پر نانا' : 'پر دادی/پر نانی';
-                }
+        for (const neighbor of neighbors) {
+            if (!visited.has(neighbor) && members[neighbor]) {
+                visited.add(neighbor);
+                queue.push([...path, neighbor]);
             }
         }
     }
-
-    // Check if m1 is great-grandparent
-    for (const pid of m2.parents) {
-        const parent = familyTree.members[pid];
-        if (parent) {
-            for (const gpid of parent.parents) {
-                const grandparent = familyTree.members[gpid];
-                if (grandparent && grandparent.parents.includes(p1)) {
-                    return m2.gender === 'male' ? 'پر پوتا/پر نواسہ' : 'پر پوتی/پر نواسی';
-                }
-            }
-        }
-    }
-
-    // Check in-laws
-    // Brother-in-law / Sister-in-law (spouse's sibling)
-    if (m1.spouse) {
-        const spouse = Object.values(familyTree.members).find(x => x.name === m1.spouse.name || x.id === m1.spouse.id);
-        if (spouse && spouse.siblings.includes(p2)) {
-            return m2.gender === 'male' ? 'بہنوئی/سالا' : 'بھابھی/نند/سالی';
-        }
-    }
-
-    // Son-in-law / Daughter-in-law (child's spouse)
-    for (const cid of m1.children) {
-        const child = familyTree.members[cid];
-        if (child && child.spouse && (child.spouse.id === p2 || child.spouse.name === m2.name)) {
-            return m2.gender === 'male' ? 'داماد' : 'بہو';
-        }
-    }
-
-    // Father-in-law / Mother-in-law (spouse's parent)
-    if (m1.spouse) {
-        const spouse = Object.values(familyTree.members).find(x => x.name === m1.spouse.name || x.id === m1.spouse.id);
-        if (spouse && spouse.parents.includes(p2)) {
-            return m2.gender === 'male' ? 'سسر' : 'ساس';
-        }
-    }
-
-    return 'رشتہ نہیں ملا';
+    return { path: [], namesPath: [] };
 }
 
-function showCorrection(p1,p2,cr) {
-    document.getElementById('currentRelationText').textContent = urduRelations[cr]||cr;
-    document.getElementById('correctedRelation').value = cr;
+function translatePathToRelation(path, targetGender) {
+    if (path.length < 2) return 'رشتہ نہیں ملا';
+    
+    const members = familyTree.members;
+    // Fast analytical decoding based on steps
+    let start = members[path[0]];
+    let end = members[path[path.length - 1]];
+    
+    // Exact generation differential calculations
+    const genDiff = end.generation - start.generation;
+
+    if (genDiff === -1) {
+        if (start.fatherId === end.id) return urduRelations.father;
+        if (start.motherId === end.id) return urduRelations.mother;
+        if (start.spouseIds.some(sid => members[sid]?.fatherId === end.id)) return urduRelations.father_in_law;
+        if (start.spouseIds.some(sid => members[sid]?.motherId === end.id)) return urduRelations.mother_in_law;
+        return targetGender === 'male' ? urduRelations.uncle : urduRelations.aunt;
+    }
+    if (genDiff === 1) {
+        if (end.fatherId === start.id || end.motherId === start.id) {
+            return targetGender === 'male' ? urduRelations.son : urduRelations.daughter;
+        }
+        return targetGender === 'male' ? urduRelations.nephew : urduRelations.niece;
+    }
+    if (genDiff === 0) {
+        if (start.spouseIds.includes(end.id)) {
+            return targetGender === 'male' ? urduRelations.husband : urduRelations.wife;
+        }
+        if (start.siblingsIds.includes(end.id)) {
+            return targetGender === 'male' ? urduRelations.brother : urduRelations.sister;
+        }
+        return urduRelations.cousin;
+    }
+    if (genDiff === -2) return targetGender === 'male' ? urduRelations.grandfather : urduRelations.grandmother;
+    if (genDiff === -3) return targetGender === 'male' ? urduRelations.great_grandfather : urduRelations.great_grandmother;
+    if (genDiff === 2) return targetGender === 'male' ? urduRelations.grandson : urduRelations.granddaughter;
+    if (genDiff === 3) return targetGender === 'male' ? urduRelations.great_grandson : urduRelations.great_granddaughter;
+
+    return genDiff < 0 ? urduRelations.ancestor : urduRelations.descendant;
+}
+
+// ==================== MANUAL CORRECTIONS ENGINE ====================
+function showCorrection(p1, p2, currentText) {
+    currentCorrection = { p1, p2, or: currentText };
+    document.getElementById('currentRelationText').textContent = currentText;
     document.getElementById('correctionBox').classList.add('show');
-    currentCorrection = { p1, p2, cr };
 }
 
 function applyCorrection() {
     if (!currentCorrection) return;
     const cr = document.getElementById('correctedRelation').value;
     const reason = document.getElementById('correctionReason').value.trim();
-    familyTree.corrections = familyTree.corrections.filter(c => !((c.p1===currentCorrection.p1&&c.p2===currentCorrection.p2)||(c.p1===currentCorrection.p2&&c.p2===currentCorrection.p1)));
-    familyTree.corrections.push({ p1: currentCorrection.p1, p2: currentCorrection.p2, or: currentCorrection.cr, cr, reason, at: new Date().toISOString() });
-    document.getElementById('correctionBox').classList.remove('show');
-    saveToStorage(); calculateRelation(); updateCorrectionHistory();
-    showToast('✅ درستی لاگو!');
+
+    familyTree.corrections = familyTree.corrections.filter(c => !(c.p1 === currentCorrection.p1 && c.p2 === currentCorrection.p2));
+    
+    familyTree.corrections.push({
+        p1: currentCorrection.p1,
+        p2: currentCorrection.p2,
+        or: currentCorrection.or,
+        cr: cr,
+        reason: reason
+    });
+
+    saveToStorage();
+    cancelCorrection();
+    calculateRelation();
+    updateCorrectionHistory();
+    showToast('✏️ رشتہ دستی درست کر دیا گیا!');
 }
 
-function cancelCorrection() { document.getElementById('correctionBox').classList.remove('show'); currentCorrection = null; }
+function cancelCorrection() {
+    document.getElementById('correctionBox').classList.remove('show');
+    currentCorrection = null;
+}
 
 function updateCorrectionHistory() {
     const el = document.getElementById('correctionHistory');
-    if (!familyTree.corrections.length) { el.innerHTML = ''; return; }
+    if (!el) return;
+    if (!familyTree.corrections || !familyTree.corrections.length) {
+        el.innerHTML = '';
+        return;
+    }
+
     el.innerHTML = '<h4 style="color:#333;margin:14px 0 10px;font-size:0.95em">📋 درست شدہ رشتے</h4>' + 
-        familyTree.corrections.map((c,i) => {
-            const m1 = familyTree.members[c.p1], m2 = familyTree.members[c.p2];
-            if (!m1 || !m2) return '';
-            return `<div class="corr-item"><p><strong>${m1.name}</strong> → <strong>${m2.name}</strong></p><p style="color:#666;font-size:0.82em">${urduRelations[c.or]||c.or} → <strong>${urduRelations[c.cr]||c.cr}</strong></p>${c.reason?`<p class="corr-meta">📝 ${c.reason}</p>`:''}<button class="btn btn-danger" style="margin-top:6px;padding:6px 12px;font-size:0.78em" onclick="removeCorrection(${i})">🗑️ حذف</button></div>`;
-        }).join('');
+    familyTree.corrections.map((c, i) => {
+        const m1 = familyTree.members[c.p1];
+        const m2 = familyTree.members[c.p2];
+        if (!m1 || !m2) return '';
+        return `
+            <div class="corr-item">
+                <p><strong>${m1.name}</strong> ➔ <strong>${m2.name}</strong></p>
+                <p style="color:#666;font-size:0.82em">حقیقی قیاس: ${c.or} ➔ <strong>ترمیم شدہ: ${urduRelations[c.cr] || c.cr}</strong></p>
+                ${c.reason ? `<p class="corr-meta">📝 وجہ: ${c.reason}</p>` : ''}
+                <button class="btn btn-danger" style="margin-top:6px;padding:4px 8px;font-size:0.75em" onclick="removeCorrection(${i})">🗑️ حذف</button>
+            </div>
+        `;
+    }).join('');
 }
 
 function removeCorrection(i) {
-    if (!confirm('درستی حذف کریں؟')) return;
-    familyTree.corrections.splice(i, 1); saveToStorage();
-    updateCorrectionHistory(); calculateRelation();
-    showToast('🗑️ حذف!');
+    familyTree.corrections.splice(i, 1);
+    saveToStorage();
+    updateCorrectionHistory();
+    if(document.getElementById('person1').value) calculateRelation();
+    showToast('🗑️ ترمیم منسوخ کر دی گئی!');
 }
 
-function findPath(f,t) {
-    const vis = new Set(), q = [[{id:f,rel:'self'}]]; vis.add(f);
-    while (q.length) {
-        const p = q.shift(), c = p[p.length-1];
-        if (c.id === t) return p;
-        const m = familyTree.members[c.id]; if (!m) continue;
-        const conns = [];
-        m.parents.forEach(pid => conns.push({id:pid,rel:'father'}));
-        m.children.forEach(cid => conns.push({id:cid,rel:'son'}));
-        if (m.spouse) conns.push({id:m.spouse.id,rel:'wife'});
-        m.siblings.forEach(sid => conns.push({id:sid,rel:'brother'}));
-        for (const cn of conns) { if (!vis.has(cn.id)) { vis.add(cn.id); q.push([...p,cn]); } }
-    }
-    return null;
-}
-
-function calcRelFromPath(p) {
-    if (p.length < 2) return 'خود';
-    const st = []; for (let i=1;i<p.length;i++) st.push(p[i].rel);
-    let up=0,down=0,same=0; st.forEach(s=>{if(s==='father'||s==='mother')up++;else if(s==='son'||s==='daughter')down++;else same++});
-    const tg = familyTree.members[p[p.length-1].id].gender;
-    if (up===1&&down===0&&same===0) return tg==='male'?'باپ':'ماں';
-    if (up===2&&down===0&&same===0) return tg==='male'?'دادا/نانا':'دادی/نانی';
-    if (down===1&&up===0&&same===0) return tg==='male'?'بیٹا':'بیٹی';
-    if (down===2&&up===0&&same===0) return tg==='male'?'پوتا/نواسہ':'پوتی/نواسی';
-    if (same===1&&up===0&&down===0) return tg==='male'?'بھائی/شوہر':'بہن/بیوی';
-    if (up===1&&same===1&&down===0) return tg==='male'?'چچا/ماموں/تایا':'پھوپھی/خالہ/تائی';
-    if (down===1&&same===1&&up===0) return tg==='male'?'بھتیجا/بھانجا':'بھتیجی/بھانجی';
-    if (same===2&&up===0&&down===0) return 'کزن/چچا زاد';
-    return 'رشتہ دار';
-}
-
-// ==================== MEMBER DETAILS ====================
+// ==================== MEMBER PROFILE SYSTEM ====================
 function showMemberDetails(mid) {
-    const m = familyTree.members[mid]; if (!m) return;
-    const rt = m.relation==='root'?'جڑ':urduRelations[m.relation];
-    const rtn = m.relatedTo?familyTree.members[m.relatedTo]?.name:'---';
-    const cn = m.children.map(cid=>familyTree.members[cid]?.name).filter(Boolean).join(', ')||'کوئی نہیں';
-    const pn = m.parents.map(pid=>familyTree.members[pid]?.name).filter(Boolean).join(', ')||'کوئی نہیں';
-    const sn = m.siblings.map(sid=>familyTree.members[sid]?.name).filter(Boolean).join(', ')||'کوئی نہیں';
-    document.getElementById('modalContent').innerHTML = `<div style="text-align:center;margin-bottom:18px"><div class="member-avatar ${m.gender}" style="width:56px;height:56px;font-size:1.4em;margin:0 auto 8px">${m.name.charAt(0)}</div><h2 style="color:#333;font-size:1.2em">${m.name}</h2><p style="color:#888;font-size:0.9em">${rt}</p></div><div style="background:#f8f9fa;padding:16px;border-radius:12px"><p><strong>⚧</strong> ${m.gender==='male'?'مرد':'خاتون'}</p><p><strong>🔗</strong> ${rt}</p><p><strong>👤</strong> ${rtn}</p><p><strong>📊</strong> نسل ${m.generation}</p><hr style="margin:10px 0;border:none;border-top:1px solid #ddd"><p><strong>👶</strong> ${cn}</p><p><strong>👴</strong> ${pn}</p><p><strong>👫</strong> ${sn}</p>${m.spouse?`<p><strong>💑</strong> ${m.spouse.name}</p>`:''}</div>`;
+    const m = familyTree.members[mid];
+    if (!m) return;
+
+    let h = `
+        <div style="text-align:center; margin-bottom:15px;">
+            <div class="member-avatar ${m.gender}" style="width:60px; height:60px; margin:0 auto 8px; font-size:1.8em;">${m.gender === 'male' ? '👨' : '👩'}</div>
+            <h3 style="margin-bottom:2px;">${m.name}</h3>
+            <span class="generation-level" style="background:#667eea; color:white;">نسل ${m.generation || 0}</span>
+        </div>
+        <div class="input-grid">
+            <div class="input-group"><label>📛 نام</label><input type="text" value="${m.name}" onchange="updateMemberField('${mid}','name',this.value); updateAll();"></div>
+            <div class="input-group"><label>🎂 تاریخ پیدائش</label><input type="date" value="${m.birthDate || ''}" onchange="updateMemberField('${mid}','birthDate',this.value)"></div>
+            <div class="input-group"><label>⚰️ تاریخ وفات (اختیاری)</label><input type="date" value="${m.deathDate || ''}" onchange="updateMemberField('${mid}','deathDate',this.value)"></div>
+            <div class="input-group"><label>📝 اضافی نوٹس</label><textarea rows="2" onchange="updateMemberField('${mid}','notes',this.value)">${m.notes || ''}</textarea></div>
+        </div>
+        <div class="btn-row" style="margin-top:15px;">
+            <button class="btn btn-danger" onclick="deleteMember('${mid}')">🗑️ فرد حذف کریں</button>
+            <button class="btn btn-secondary" onclick="closeModal('memberModal')">بند کریں</button>
+        </div>
+    `;
+    document.getElementById('modalContent').innerHTML = h;
     openModal('memberModal');
 }
 
-// ==================== SAVE / LOAD ====================
+// ==================== STORAGE CONTROLLER ====================
 function saveTree() {
-    if (!Object.keys(familyTree.members).length) { showToast('❌ شجرہ خالی ہے!'); return; }
-    openModal('saveModal');
-}
-
-function confirmSave() {
-    const name = document.getElementById('treeName').value.trim();
-    if (!name) { showToast('❌ نام درج کریں!'); return; }
-    familyTree.treeName = name;
-    familyTree.treeDescription = document.getElementById('treeDescription').value.trim();
-    familyTree.savedAt = new Date().toISOString();
-    let saved = JSON.parse(localStorage.getItem('ftrees')||'[]');
-    const idx = saved.findIndex(t => t.treeName === name);
-    if (idx >= 0) { if (!confirm('اوور رائٹ کریں؟')) return; saved[idx] = JSON.parse(JSON.stringify(familyTree)); }
-    else saved.push(JSON.parse(JSON.stringify(familyTree)));
+    // Structural Integrity validation sweep before absolute dump
+    for (const id in familyTree.members) {
+        const p = familyTree.members[id];
+        if (p.fatherId && !familyTree.members[p.fatherId]) p.fatherId = null;
+        if (p.motherId && !familyTree.members[p.motherId]) p.motherId = null;
+    }
+    
+    let saved = JSON.parse(localStorage.getItem('ftrees') || '[]');
+    saved = saved.filter(t => t.treeName !== familyTree.treeName);
+    familyTree.savedAt = Date.now();
+    saved.push(JSON.parse(JSON.stringify(familyTree)));
+    
     localStorage.setItem('ftrees', JSON.stringify(saved));
-    closeModal('saveModal'); showToast('💾 محفوظ!');
+    localStorage.setItem('ftree_current', JSON.stringify(familyTree));
+    showToast('💾 شجرہ مقامی اسٹوریج میں محفوظ کر دیا گیا!');
 }
 
 function showLoadModal() {
-    const saved = JSON.parse(localStorage.getItem('ftrees')||'[]');
+    const saved = JSON.parse(localStorage.getItem('ftrees') || '[]');
     const el = document.getElementById('savedTreesList');
-    if (!saved.length) { el.innerHTML = '<p style="text-align:center;color:#ccc;padding:20px">کچھ نہیں</p>'; }
-    else {
-        el.innerHTML = saved.map((t,i) => {
-            const mc = Object.keys(t.members||{}).length;
-            const d = t.savedAt ? new Date(t.savedAt).toLocaleDateString('ur') : '';
-            return `<div class="saved-item"><div class="saved-info"><h4>${t.treeName||'بے نام'}</h4><p>${mc} افراد${d?' · '+d:''}</p></div><div style="display:flex;gap:5px"><button class="btn-icon" style="background:#e3f2fd;color:#1976d2" onclick="loadTree(${i})">📂</button><button class="btn-icon" style="background:#ffebee;color:#c62828" onclick="deleteSaved(${i})">🗑️</button></div></div>`;
+
+    if (!saved.length) {
+        el.innerHTML = '<p style="text-align:center;color:#ccc;padding:20px">کوئی محفوظ شدہ شجرہ نہیں ملا</p>';
+    } else {
+        el.innerHTML = saved.map((t, i) => {
+            const count = Object.keys(t.members || {}).length;
+            return `
+                <div class="saved-item">
+                    <div class="saved-info">
+                        <h4>${t.treeName || 'بے نام شجرہ'}</h4>
+                        <p>${count} افراد · ${t.savedAt ? new Date(t.savedAt).toLocaleDateString('ur') : ''}</p>
+                    </div>
+                    <div style="display:flex;gap:5px">
+                        <button class="btn-icon" style="background:#e3f2fd;color:#1976d2" onclick="loadTreeIndex(${i})">📂</button>
+                        <button class="btn-icon" style="background:#ffebee;color:#c62828" onclick="deleteSavedIndex(${i})">🗑️</button>
+                    </div>
+                </div>
+            `;
         }).join('');
     }
     openModal('loadModal');
 }
 
-function loadTree(i) {
-    const saved = JSON.parse(localStorage.getItem('ftrees')||'[]');
-    if (i>=0 && i<saved.length) { familyTree = JSON.parse(JSON.stringify(saved[i])); saveToStorage(); updateAll(); closeModal('loadModal'); showToast('📂 لوڈ!'); }
+function loadTreeIndex(i) {
+    const saved = JSON.parse(localStorage.getItem('ftrees') || '[]');
+    if (saved[i]) {
+        familyTree = JSON.parse(JSON.stringify(saved[i]));
+        saveToStorage();
+        updateAll();
+        closeModal('loadModal');
+        showToast('📂 شجرہ لوڈ ہو گیا!');
+    }
 }
 
-function deleteSaved(i) {
-    if (!confirm('حذف کریں؟')) return;
-    let saved = JSON.parse(localStorage.getItem('ftrees')||'[]');
-    saved.splice(i,1); localStorage.setItem('ftrees', JSON.stringify(saved));
-    showLoadModal(); showToast('🗑️ حذف!');
+function deleteSavedIndex(i) {
+    if (!confirm('کیا آپ واقعی اسے حذف کرنا چاہتے ہیں؟')) return;
+    let saved = JSON.parse(localStorage.getItem('ftrees') || '[]');
+    saved.splice(i, 1);
+    localStorage.setItem('ftrees', JSON.stringify(saved));
+    showLoadModal();
+    showToast('🗑️ حذف کر دیا گیا!');
 }
 
-// ==================== STORAGE ====================
-function saveToStorage() { localStorage.setItem('ftree_current', JSON.stringify(familyTree)); }
+function saveToStorage() {
+    localStorage.setItem('ftree_current', JSON.stringify(familyTree));
+}
+
 function loadFromStorage() {
-    const data = localStorage.getItem('ftree_current');
-    if (data) { try { familyTree = JSON.parse(data); } catch(e){} }
-    const params = new URLSearchParams(location.search);
-    const d = params.get('d');
-    if (d) { try { familyTree = JSON.parse(atob(decodeURIComponent(d))); saveToStorage(); showToast('📂 شیئر شدہ لوڈ!'); } catch(e){} }
-}
-
-// ==================== EXPORT / IMPORT ====================
-function exportJSON() {
-    if (!Object.keys(familyTree.members).length) { showToast('❌ خالی ہے!'); return; }
-    const data = JSON.stringify(familyTree, null, 2);
-    const blob = new Blob([data], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = (familyTree.treeName||'shajra') + '.json';
-    a.click(); URL.revokeObjectURL(url);
-    showToast('💾 JSON ڈاؤنلوڈ!');
-}
-
-function importJSON(input) {
-    const file = input.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try { familyTree = JSON.parse(e.target.result); saveToStorage(); updateAll(); showToast('📂 امپورٹ!'); }
-        catch(err) { showToast('❌ غلط فائل!'); }
-    };
-    reader.readAsText(file); input.value = '';
-}
-
-// ==================== PDF ====================
-function exportToPDF() {
-    if (!Object.keys(familyTree.members).length) { showToast('❌ خالی ہے!'); return; }
-    showToast('📄 پرنٹ تیار...');
+    const localData = localStorage.getItem('ftree_current');
+    if (localData) {
+        try { familyTree = JSON.parse(localData); } catch(e){}
+    }
     
-    const style = document.createElement('style');
-    style.textContent = `
-        @media print {
-            /* 1. پہلے پیج کی ہر چیز کو چھپائیں */
-            body * {
-                display: none !important;
-            }
-            
-            /* 2. صرف باڈی، ٹری اسکرول کنٹینر اور اس کے اندر موجود تمام چیزوں کو ظاہر کریں */
-            body, .tree-scroll, .tree-scroll * {
-                display: block !important;
-            }
-            
-            /* 3. پرنٹ لے آؤٹ کی سیٹنگز */
-            body {
-                background: white;
-                padding: 10px;
-            }
-            
-            .tree-container {
-                box-shadow: none;
-                padding: 5px;
-                margin: 0;
-            }
-            
-            .tree-scroll {
-                overflow: visible !important;
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-            }
-            
-            /* 4. کارڈز اور کنکشن لائنز کے اسٹائلز */
-            .node-card {
-                box-shadow: none;
-                border: 1px solid #ccc;
-                color: black !important;
-                background: white !important;
-            }
-            
-            .node-card.male {
-                background: #e3f2fd !important;
-            }
-            
-            .node-card.female {
-                background: #fce4ec !important;
-            }
-            
-            .node-card .node-name {
-                color: black;
-            }
-            
-            .node-card .node-relation {
-                color: #666;
-            }
-            
-            .generation-level {
-                background: #f5f5f5 !important;
-                color: black !important;
-            }
-            
-            .children-container::before,
-            .child-wrapper::before,
-            .children-connector,
-            .spouse-line {
-                background: #999 !important;
-            }
+    // Token / Cloud Url Safe Importing processor
+    const urlParams = new URLSearchParams(location.search);
+    const compressedToken = urlParams.get('d');
+    if (compressedToken) {
+        try {
+            const decompressed = decodeURIComponent(atob(compressedToken));
+            familyTree = JSON.parse(decompressed);
+            saveToStorage();
+            showToast('📥 شیئر کردہ کلاؤڈ شجرہ کامیابی سے لوڈ ہو گیا!');
+        } catch(e) {
+            showToast('❌ امپورٹ ٹوکن غیر موزوں ہے!');
         }
-    `;
-    
-    document.head.appendChild(style);
-    setTimeout(() => { 
-        window.print(); 
-        document.head.removeChild(style); 
-        showToast('✅ پرنٹ ڈائیلاگ!'); 
-    }, 300);
+    }
 }
 
-// ==================== SHARE ====================
+// ==================== REVOLUTIONARY SHARING ENGINE ====================
 function showShareModal() {
-    if (!Object.keys(familyTree.members).length) { showToast('❌ خالی ہے!'); return; }
+    if (!Object.keys(familyTree.members).length) {
+        showToast('❌ شجرہ میں کوئی فرد موجود نہیں ہے!');
+        return;
+    }
     document.getElementById('qrSection').style.display = 'none';
     document.getElementById('linkSection').style.display = 'none';
     openModal('shareModal');
 }
 
+function generateShareLink() {
+    const rawJson = JSON.stringify(familyTree);
+    const secureToken = btoa(encodeURIComponent(rawJson));
+    return location.origin + location.pathname + '?d=' + secureToken;
+}
+
 function copyLink() {
-    const data = btoa(JSON.stringify(familyTree));
-    const url = location.href.split('?')[0] + '?d=' + encodeURIComponent(data);
-    document.getElementById('shareLinkInput').value = url;
-    document.getElementById('linkSection').style.display = 'block';
-    document.getElementById('qrSection').style.display = 'none';
+    const fullLink = generateShareLink();
+    const input = document.getElementById('shareLinkInput');
+    input.value = fullLink;
+
+    document.getElementById('linkSection').style.display = 'flex';
+    document.getElementById('qrSection').style.display = 'block';
+    
+    // Inject ultra high fidelity fast dynamic API QR codes automatically
+    const qrContainer = document.getElementById('qrcode');
+    qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(fullLink)}" alt="QR Code" style="border:4px solid white; box-shadow:0 2px 10px rgba(0,0,0,0.1); border-radius:8px;">`;
 }
 
 function copyToClipboard() {
     const input = document.getElementById('shareLinkInput');
     input.select();
-    if (navigator.clipboard) navigator.clipboard.writeText(input.value);
-    else document.execCommand('copy');
-    showToast('📋 کاپی!');
+    navigator.clipboard.writeText(input.value).then(() => {
+        showToast('📋 محفوظ ترین شیئر لنک کاپی ہو گیا!');
+    }).catch(() => {
+        document.execCommand('copy');
+        showToast('📋 کاپی ہو گیا!');
+    });
 }
 
 function shareWhatsApp() {
-    const data = btoa(JSON.stringify(familyTree));
-    const url = location.href.split('?')[0] + '?d=' + encodeURIComponent(data);
-    window.open('https://wa.me/?text=' + encodeURIComponent('شجرہ نسب: ' + url));
+    const link = generateShareLink();
+    const msg = `🌳 *السلام علیکم!* میں نے اپنے خاندان کا شجرہ نسب تیار کیا ہے۔ آپ اس لنک پر کلک کر کے پورا خاندانی نیٹ ورک دیکھ سکتے ہیں اور اپنے نام شامل کر سکتے ہیں: \n\n🔗 ${link}`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
-function shareNative() {
-    const data = btoa(JSON.stringify(familyTree));
-    const url = location.href.split('?')[0] + '?d=' + encodeURIComponent(data);
-    if (navigator.share) { navigator.share({ title: 'شجرہ نسب', text: 'خاندانی شجرہ نسب:', url }); }
-    else { copyLink(); showToast('📋 لنک کاپی!'); }
+// ==================== ADVANCED PRINTING & PDF EXPORT SYSTEM ====================
+function exportToPDF() {
+    const printStyle = document.createElement('style');
+    printStyle.innerHTML = `
+        @media print {
+            body { background: white !important; padding: 0 !important; color: black !important; }
+            .action-bar, .card:nth-of-type(1), .card:nth-of-type(4), .modal-overlay, .install-banner, h1, .subtitle { display: none !important; }
+            .card { box-shadow: none !important; margin: 0 !important; padding: 10px !important; }
+            .tree-scroll { overflow: visible !important; }
+            .node-card { border: 2px solid #555 !important; background: #fff !important; color: #000 !important; box-shadow: none !important; }
+            .node-card.male { background: #e3f2fd !important; border-color: #2196f3 !important; }
+            .node-card.female { background: #fce4ec !important; border-color: #e91e63 !important; }
+            .node-name { color: #000 !important; }
+            .generation-level { background: #eee !important; color: #000 !important; }
+            .children-container::before, .child-wrapper::before, .children-connector, .spouse-line { background: #000 !important; }
+        }
+    `;
+    document.head.appendChild(printStyle);
+    showToast('📄 پی ڈی ایف پرنٹ ڈائیلاگ شروع ہو رہا ہے...');
+    setTimeout(() => {
+        window.print();
+        document.head.removeChild(printStyle);
+    }, 500);
 }
 
-function generateQR() {
-    const qrSection = document.getElementById('qrSection');
-    const qrContainer = document.getElementById('qrcode');
-    qrContainer.innerHTML = '';
-    const data = btoa(JSON.stringify(familyTree));
-    const url = location.href.split('?')[0] + '?d=' + encodeURIComponent(data);
-    if (typeof QRCode !== 'undefined') {
-        new QRCode(qrContainer, { text: url, width: 180, height: 180, colorDark: '#667eea', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
-    } else {
-        qrContainer.innerHTML = '<p style="color:#999;font-size:0.85em">QR کوڈ کے لیے انٹرنیٹ درکار ہے</p>';
-    }
-    qrSection.style.display = 'block';
-    document.getElementById('linkSection').style.display = 'none';
-}
+// ==================== IMPORTS & RESETS ====================
+function importJSON(input) {
+    const file = input.files[0];
+    if (!file) return;
 
-// ==================== INVITE ====================
-function showInviteModal() {
-    if (!Object.keys(familyTree.members).length) { showToast('❌ خالی ہے!'); return; }
-    openModal('inviteModal');
-}
-
-function inviteWhatsApp() {
-    const data = btoa(JSON.stringify(familyTree));
-    const url = location.href.split('?')[0] + '?d=' + encodeURIComponent(data);
-    window.open('https://wa.me/?text=' + encodeURIComponent('سلام! ہمارا خاندانی شجرہ نسب دیکھیں: ' + url));
-}
-
-function inviteSMS() {
-    const data = btoa(JSON.stringify(familyTree));
-    const url = location.href.split('?')[0] + '?d=' + encodeURIComponent(data);
-    window.open('sms:?body=' + encodeURIComponent('شجرہ نسب دیکھیں: ' + url));
-}
-
-function inviteEmail() {
-    const data = btoa(JSON.stringify(familyTree));
-    const url = location.href.split('?')[0] + '?d=' + encodeURIComponent(data);
-    window.open('mailto:?subject=' + encodeURIComponent('شجرہ نسب') + '&body=' + encodeURIComponent('سلام،\n\nہمارا خاندانی شجرہ نسب دیکھیں:\n' + url + '\n\nشکریہ!'));
-}
-
-function inviteQR() {
-    closeModal('inviteModal'); showShareModal(); setTimeout(generateQR, 300);
-}
-
-// ==================== DELETE / RESET ====================
-function deleteMember(mid) {
-    if (!confirm('حذف کریں؟')) return;
-    Object.values(familyTree.members).forEach(m => {
-        m.children = m.children.filter(id => id !== mid);
-        m.parents = m.parents.filter(id => id !== mid);
-        m.siblings = m.siblings.filter(id => id !== mid);
-        if (m.spouse && m.spouse.id === mid) m.spouse = null;
-    });
-    delete familyTree.members[mid];
-    if (familyTree.root === mid) { familyTree.root = Object.keys(familyTree.members).length ? Object.values(familyTree.members)[0].id : null; }
-    saveToStorage(); updateAll();
-    showToast('🗑️ حذف!');
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const parsed = JSON.parse(e.target.result);
+            if (parsed && typeof parsed === 'object') {
+                familyTree = parsed;
+                if (!familyTree.members) familyTree.members = {};
+                saveToStorage();
+                updateAll();
+                closeModal('loadModal');
+                showToast('✅ بیرونی شجرہ ڈیٹا کامیابی سے امپورٹ کر لیا گیا!');
+            }
+        } catch(err) {
+            showToast('❌ فائل کا فارمیٹ درست نہیں ہے!');
+        }
+    };
+    reader.readAsText(file);
 }
 
 function clearAll() {
-    if (!confirm('تمام افراد حذف کریں؟')) return;
-    familyTree = { members: {}, root: null, corrections: [], treeName: '', treeDescription: '' };
-    saveToStorage(); updateAll();
-    showToast('🗑️ سب حذف!');
+    if (!confirm('کیا آپ واقعی پورا شجرہ حذف کر کے نیا شروع کرنا چاہتے ہیں؟')) return;
+    familyTree = { members: {}, root: null, corrections: [], treeName: 'میرا شجرہ نسب', treeDescription: '' };
+    saveToStorage();
+    updateAll();
+    showToast('🗑️ تمام خاندانی نیٹ ورک صاف کر دیا گیا!');
 }
 
 function resetForm() {
@@ -1027,17 +1291,18 @@ function resetForm() {
     document.getElementById('spouseSection').classList.remove('show');
 }
 
-// ==================== MODAL ====================
 function openModal(id) { document.getElementById(id).classList.add('show'); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-document.querySelectorAll('.modal-overlay').forEach(o => { o.addEventListener('click', e => { if (e.target === o) o.classList.remove('show'); }); });
-
-// ==================== TOAST ====================
 function showToast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg; t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2500);
+    setTimeout(() => t.classList.remove('show'), 3500);
 }
+
+// Global modal background touch escape binder
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(overlay.id); });
+});
 </script>
 </body>
 </html>
