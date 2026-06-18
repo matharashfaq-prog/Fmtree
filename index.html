@@ -1143,6 +1143,123 @@ function loadTreeIndex(i) {
     }
 }
 
+// ==================== ADVANCED PDF EXPORT CONTROLLER ====================
+async function exportToPDF() {
+    if (!familyTree || !familyTree.members || Object.keys(familyTree.members).length === 0) {
+        alert('شجرہ نسب خالی ہے! پہلے کچھ افراد شامل کریں۔');
+        return;
+    }
+    
+    // نوٹیفکیشن یا ٹوسٹ دکھانے کے لیے سیف ہینڈلر
+    if (typeof showNotification === 'function') {
+        showNotification('📄 PDF تیار ہو رہا ہے...');
+    } else if (typeof showToast === 'function') {
+        showToast('📄 PDF تیار ہو رہا ہے...');
+    }
+
+    const { jsPDF } = window.jspdf;
+    // لینڈ اسکیپ اورینٹیشن خاندانی درخت کی چوڑائی کے لیے بہترین ہے
+    const pdf = new jsPDF('l', 'mm', 'a4');
+    
+    // صفحہ اول کا ٹائٹل اور ہیڈر ڈیزائن
+    pdf.setFontSize(22);
+    pdf.text(familyTree.treeName || 'شجرہ نسب', 148, 15, { align: 'center' });
+    pdf.setFontSize(12);
+    pdf.text('خاندانی شجرہ نسب', 148, 25, { align: 'center' });
+    pdf.setFontSize(10);
+    pdf.text('تاریخ: ' + new Date().toLocaleDateString('ur-PK'), 20, 35);
+
+    // صرف ٹری ڈسپلے کے اسکرولنگ پینل کے ایلیمنٹ کو کیپچر کرنا
+    const treeElement = document.getElementById('treeDisplay');
+    if (!treeElement) {
+        alert('خرابی: شجرہ کا ڈسپلے ایلیمنٹ نہیں ملا۔');
+        return;
+    }
+
+    try {
+        // ایلیمنٹ کو ایچ ڈی کوالٹی کینوس میں تبدیل کرنا (بیک گراؤنڈ سفید سیٹ کیا گیا ہے)
+        const canvas = await html2canvas(treeElement, {
+            scale: 2, 
+            backgroundColor: '#ffffff', 
+            logging: false,
+            useCORS: true
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = 257; // A4 پیج کی چوڑائی کے مطابق مارجن ایڈجسٹمنٹ
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        // پہلی شیٹ پر صرف فیملی ٹری گراف رینڈر ہوگا
+        pdf.addImage(imgData, 'PNG', 20, 45, imgWidth, Math.min(imgHeight, 145));
+        
+        // صفحہ دوم: فیملی ممبرز کی وضاحتی فہرست ٹیکسٹ فارمیٹ میں
+        pdf.addPage();
+        pdf.setFontSize(16);
+        pdf.text('فیملی ممبرز کی فہرست', 148, 15, { align: 'center' });
+        
+        let y = 30;
+        const members = Object.values(familyTree.members);
+        pdf.setFontSize(10);
+        
+        members.forEach((member, i) => {
+            if (y > 190) { // لینڈ اسکیپ سیف ہائٹ چیک فار نیو پیج
+                pdf.addPage();
+                y = 20;
+            }
+            // رشتہ معلوم کرنے کی چیکنگ
+            let relationText = '';
+            if (member.relation === 'root') {
+                relationText = 'جڑ (بنیاد)';
+            } else if (typeof urduRelations !== 'undefined' && urduRelations[member.relation]) {
+                relationText = urduRelations[member.relation];
+            } else {
+                relationText = member.relation || 'رشتہ دار';
+            }
+            
+            const line = `${i + 1}. ${member.name} - ${relationText} (نسل ${member.generation || 1})`;
+            pdf.text(line, 20, y);
+            y += 8;
+        });
+
+        // اگر فیملی ٹری میں درستگیوں (Corrections) کا لاگ موجود ہو تو تیسرا سیکشن پرنٹ کریں
+        if (familyTree.corrections && familyTree.corrections.length > 0) {
+            pdf.addPage();
+            pdf.setFontSize(16);
+            pdf.text('درست شدہ رشتے اور ہسٹری', 148, 15, { align: 'center' });
+            y = 30;
+            pdf.setFontSize(10);
+            
+            familyTree.corrections.forEach((c, i) => {
+                if (y > 190) {
+                    pdf.addPage();
+                    y = 20;
+                }
+                const p1 = familyTree.members[c.person1];
+                const p2 = familyTree.members[c.person2];
+                if (p1 && p2) {
+                    const origRel = (typeof urduRelations !== 'undefined') ? (urduRelations[c.originalRelation] || c.originalRelation) : c.originalRelation;
+                    const corrRel = (typeof urduRelations !== 'undefined') ? (urduRelations[c.correctedRelation] || c.correctedRelation) : c.correctedRelation;
+                    const line = `${i + 1}. ${p1.name} کا ${p2.name} سے رشتہ: ${origRel} → ${corrRel}`;
+                    pdf.text(line, 20, y);
+                    y += 8;
+                }
+            });
+        }
+
+        // فائل محفوظ کریں
+        pdf.save((familyTree.treeName || 'shajra_nasab') + '.pdf');
+        
+        if (typeof showNotification === 'function') {
+            showNotification('✅ PDF کامیابی سے ڈاؤنلوڈ ہو گیا!');
+        } else if (typeof showToast === 'function') {
+            showToast('✅ PDF کامیابی سے ڈاؤنلوڈ ہو گیا!');
+        }
+    } catch (err) {
+        console.error('PDF Generation Error:', err);
+        alert('PDF بنانے میں خرابی آئی۔ براہ کرم دوبارہ کوشش کریں۔');
+    }
+}
+
 function deleteSavedIndex(i) {
     if (!confirm('کیا آپ واقعی اسے حذف کرنا چاہتے ہیں؟')) return;
     let saved = JSON.parse(localStorage.getItem('ftrees') || '[]');
