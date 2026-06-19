@@ -1142,19 +1142,16 @@ function loadTreeIndex(i) {
         showToast('📂 شجرہ لوڈ ہو گیا!');
     }
 }
-// ==================== ADVANCED FAMILY TREE CHART ONLY PRINT CONTROLLER ====================
+
+// ==================== NEW ADVANCED PDF EXPORT CONTROLLER ====================
+// یہ فنکشن صرف فیملی ٹری فلو چارٹ کو بغیر کٹے مکمل رنگوں کے ساتھ پرنٹ کرے گا
 async function exportToPDF() {
     if (!familyTree || !familyTree.members || Object.keys(familyTree.members).length === 0) {
-        alert('شجرہ نسب خالی ہے! پہلے کچھ افراد شامل کریں۔');
+        showToast('❌ شجرہ نسب خالی ہے!');
         return;
     }
     
-    // نوٹیفکیشن یا ٹوسٹ دکھانے کے لیے سیف ہینڈلر
-    if (typeof showNotification === 'function') {
-        showNotification('📄 فیملی ٹری چارٹ PDF تیار ہو رہا ہے...');
-    } else if (typeof showToast === 'function') {
-        showToast('📄 فیملی ٹری چارٹ PDF تیار ہو رہا ہے...');
-    }
+    showToast('📄 فیملی ٹری چارٹ PDF تیار ہو رہا ہے...');
 
     const treeElement = document.getElementById('treeDisplay');
     if (!treeElement) {
@@ -1162,74 +1159,66 @@ async function exportToPDF() {
         return;
     }
 
-    // اسکرولنگ کی وجہ سے کٹنے والے حصے کو روکنے کے لیے عارضی اسٹائلز محفوظ کرنا
+    // سائز بڑا ہونے پر کٹنے سے بچانے کے لیے عارضی اسٹائلنگ تبدیلیاں
     const originalWidth = treeElement.style.width;
     const originalMaxWidth = treeElement.style.maxWidth;
     const originalOverflow = treeElement.style.overflow;
     
-    // چارٹ کو اس کی اصل مکمل پیمائش (Full Dimensions) پر لے جانا تاکہ کینوس پر پورا آ سکے
     treeElement.style.width = 'max-content';
     treeElement.style.maxWidth = 'none';
     treeElement.style.overflow = 'visible';
 
     try {
-        // ایچ ڈی کوالٹی کینوس تیار کرنا (تمام رنگوں، بیک گراؤنڈز اور سی ایس ایس کے ساتھ)
+        // ایچ ڈی کوالٹی کینوس اسنیپ شاٹ بنانا (تمام رنگوں، بارڈرز اور الائنمنٹ کے ساتھ)
         const canvas = await html2canvas(treeElement, {
-            scale: 2, // تصویر کو ایچ ڈی (HD) بنانے کے لیے
-            backgroundColor: null, // اصل CSS کے بیک گراؤنڈ رنگوں کو برقرار رکھنے کے لیے
+            scale: 2, // تصویر دھندلی ہونے سے بچانے کے لیے
+            backgroundColor: null, // CSS بیک گراؤنڈ برقرار رکھنے کے لیے
             logging: false,
             useCORS: true,
             allowTaint: true,
             scrollX: 0,
             scrollY: 0,
-            width: treeElement.scrollWidth, // مکمل چوڑائی کیپچر کرنا
-            height: treeElement.scrollHeight // مکمل لمبائی کیپچر کرنا
+            width: treeElement.scrollWidth,
+            height: treeElement.scrollHeight
         });
 
-        // عارضی تبدیلیاں واپس پرانی حالت میں لانا تاکہ فرنٹ اینڈ خراب نہ ہو
+        // فرنٹ اینڈ کے ڈسپلے کو واپس پرانی حالت میں لانا
         treeElement.style.width = originalWidth;
         treeElement.style.maxWidth = originalMaxWidth;
         treeElement.style.overflow = originalOverflow;
 
         const imgData = canvas.toDataURL('image/png');
-        
-        // جے ایس پی ڈی ایف (jsPDF) کو چارٹ کے سائز کے مطابق آٹو ایڈجسٹ کرنا
         const { jsPDF } = window.jspdf;
         
-        // شجرہ کی چوڑائی اور لمبائی کو ملی میٹر میں تبدیل کرنا
-        const imgWidthMM = (canvas.width * 25.4) / 96 / 2; // scale 2 کے لیے ایڈجسٹمنٹ
+        // پکسلز کو ملی میٹر میں تبدیل کرنے کی لاجک (صفحہ آٹو ایڈجسٹ کرنے کے لیے)
+        const imgWidthMM = (canvas.width * 25.4) / 96 / 2;
         const imgHeightMM = (canvas.height * 25.4) / 96 / 2;
 
-        // ایک مخصوص سائز کا صفحہ بنانا جو آپ کے شجرے کے سائز کے بالکل برابر ہو (تاکہ لکیریں نہ کٹیں)
+        // شجرے کے چوڑائی کے لحاظ سے پیج ڈائریکشن (Landscape یا Portrait) کا فیصلہ
         const pdf = new jsPDF({
             orientation: imgWidthMM > imgHeightMM ? 'l' : 'p',
             unit: 'mm',
-            format: [imgWidthMM + 40, imgHeightMM + 40] // 20mm مارجن چاروں طرف
+            format: [imgWidthMM + 40, imgHeightMM + 40] // 20mm مارجن کے ساتھ ڈائنامک پیج سائز
         });
 
-        // شجرہ نسب کا امیج پی ڈی ایف میں شامل کرنا (تمام اصل رنگوں اور ایٹریبیوٹس کے ساتھ)
+        // پی ڈی ایف میں امیج رینڈر کرنا
         pdf.addImage(imgData, 'PNG', 20, 20, imgWidthMM, imgHeightMM);
 
-        // فائل محفوظ کریں
+        // فائل ڈاؤنلوڈ کرنا
         const fileName = (familyTree.treeName || 'family_tree_chart') + '_chart.pdf';
         pdf.save(fileName);
         
-        if (typeof showNotification === 'function') {
-            showNotification('✅ فیملی ٹری چارٹ کامیابی سے ڈاؤنلوڈ ہو گیا!');
-        } else if (typeof showToast === 'function') {
-            showToast('✅ فیملی ٹری چارٹ کامیابی سے ڈاؤنلوڈ ہو گیا!');
-        }
+        showToast('✅ فیملی ٹری چارٹ کامیابی سے ڈاؤنلوڈ ہو گیا!');
     } catch (err) {
-        // خرابی کی صورت میں فرنٹ اینڈ اسٹائلز کو لازمی بحال کرنا
+        // کسی بھی ایرر کی صورت میں فرنٹ اینڈ اسٹائلز کو لازمی بحال کرنا
         treeElement.style.width = originalWidth;
         treeElement.style.maxWidth = originalMaxWidth;
         treeElement.style.overflow = originalOverflow;
         
         console.error('PDF Chart Generation Error:', err);
-        alert('شجرہ کا چارٹ بنانے میں خرابی آئی۔ براہ کرم دوبارہ کوشش کریں۔');
+        showToast('❌ PDF بنانے میں خرابی آئی۔');
     }
 }
-
 
 function deleteSavedIndex(i) {
     if (!confirm('کیا آپ واقعی اسے حذف کرنا چاہتے ہیں؟')) return;
@@ -1311,181 +1300,31 @@ function shareWhatsApp() {
     const msg = `🌳 *السلام علیکم!* میں نے اپنے خاندان کا شجرہ نسب تیار کیا ہے۔ آپ اس لنک پر کلک کر کے پورا خاندانی نیٹ ورک دیکھ سکتے ہیں اور اپنے نام شامل کر سکتے ہیں: \n\n🔗 ${link}`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
 }
-// ==================== ADVANCED FAMILY TREE CHART ONLY PRINT CONTROLLER ====================
-async function exportToPDF() {
-    if (!familyTree || !familyTree.members || Object.keys(familyTree.members).length === 0) {
-        alert('شجرہ نسب خالی ہے! پہلے کچھ افراد شامل کریں۔');
-        return;
-    }
-    
-    // نوٹیفکیشن یا ٹوسٹ دکھانے کے لیے سیف ہینڈلر
-    if (typeof showNotification === 'function') {
-        showNotification('📄 فیملی ٹری چارٹ PDF تیار ہو رہا ہے...');
-    } else if (typeof showToast === 'function') {
-        showToast('📄 فیملی ٹری چارٹ PDF تیار ہو رہا ہے...');
-    }
 
-    const treeElement = document.getElementById('treeDisplay');
-    if (!treeElement) {
-        alert('خرابی: شجرہ کا چارٹ ڈسپلے ایلیمنٹ نہیں ملا۔');
-        return;
-    }
-
-    // اسکرولنگ کی وجہ سے کٹنے والے حصے کو روکنے کے لیے عارضی اسٹائلز محفوظ کرنا
-    const originalWidth = treeElement.style.width;
-    const originalMaxWidth = treeElement.style.maxWidth;
-    const originalOverflow = treeElement.style.overflow;
-    
-    // چارٹ کو اس کی اصل مکمل پیمائش (Full Dimensions) پر لے جانا تاکہ کینوس پر پورا آ سکے
-    treeElement.style.width = 'max-content';
-    treeElement.style.maxWidth = 'none';
-    treeElement.style.overflow = 'visible';
-
-    try {
-        // ایچ ڈی کوالٹی کینوس تیار کرنا (تمام رنگوں، بیک گراؤنڈز اور سی ایس ایس کے ساتھ)
-        const canvas = await html2canvas(treeElement, {
-            scale: 2, // تصویر کو ایچ ڈی (HD) بنانے کے لیے
-            backgroundColor: null, // اصل CSS کے بیک گراؤنڈ رنگوں کو برقرار رکھنے کے لیے
-            logging: false,
-            useCORS: true,
-            allowTaint: true,
-            scrollX: 0,
-            scrollY: 0,
-            width: treeElement.scrollWidth, // مکمل چوڑائی کیپچر کرنا
-            height: treeElement.scrollHeight // مکمل لمبائی کیپچر کرنا
-        });
-
-        // عارضی تبدیلیاں واپس پرانی حالت میں لانا تاکہ فرنٹ اینڈ خراب نہ ہو
-        treeElement.style.width = originalWidth;
-        treeElement.style.maxWidth = originalMaxWidth;
-        treeElement.style.overflow = originalOverflow;
-
-        const imgData = canvas.toDataURL('image/png');
-        
-        // جے ایس پی ڈی ایف (jsPDF) کو چارٹ کے سائز کے مطابق آٹو ایڈجسٹ کرنا
-        const { jsPDF } = window.jspdf;
-        
-        // شجرہ کی چوڑائی اور لمبائی کو ملی میٹر میں تبدیل کرنا
-        const imgWidthMM = (canvas.width * 25.4) / 96 / 2; // scale 2 کے لیے ایڈجسٹمنٹ
-        const imgHeightMM = (canvas.height * 25.4) / 96 / 2;
-
-        // ایک مخصوص سائز کا صفحہ بنانا جو آپ کے شجرے کے سائز کے بالکل برابر ہو (تاکہ لکیریں نہ کٹیں)
-        const pdf = new jsPDF({
-            orientation: imgWidthMM > imgHeightMM ? 'l' : 'p',
-            unit: 'mm',
-            format: [imgWidthMM + 40, imgHeightMM + 40] // 20mm مارجن چاروں طرف
-        });
-
-        // شجرہ نسب کا امیج پی ڈی ایف میں شامل کرنا (تمام اصل رنگوں اور ایٹریبیوٹس کے ساتھ)
-        pdf.addImage(imgData, 'PNG', 20, 20, imgWidthMM, imgHeightMM);
-
-        // فائل محفوظ کریں
-        const fileName = (familyTree.treeName || 'family_tree_chart') + '_chart.pdf';
-        pdf.save(fileName);
-        
-        if (typeof showNotification === 'function') {
-            showNotification('✅ فیملی ٹری چارٹ کامیابی سے ڈاؤنلوڈ ہو گیا!');
-        } else if (typeof showToast === 'function') {
-            showToast('✅ فیملی ٹری چارٹ کامیابی سے ڈاؤنلوڈ ہو گیا!');
+// ==================== ADVANCED PRINTING & PDF EXPORT SYSTEM ====================
+function exportToPDF() {
+    const printStyle = document.createElement('style');
+    printStyle.innerHTML = `
+        @media print {
+            body { background: white !important; padding: 0 !important; color: black !important; }
+            .action-bar, .card:nth-of-type(1), .card:nth-of-type(4), .modal-overlay, .install-banner, h1, .subtitle { display: none !important; }
+            .card { box-shadow: none !important; margin: 0 !important; padding: 10px !important; }
+            .tree-scroll { overflow: visible !important; }
+            .node-card { border: 2px solid #555 !important; background: #fff !important; color: #000 !important; box-shadow: none !important; }
+            .node-card.male { background: #e3f2fd !important; border-color: #2196f3 !important; }
+            .node-card.female { background: #fce4ec !important; border-color: #e91e63 !important; }
+            .node-name { color: #000 !important; }
+            .generation-level { background: #eee !important; color: #000 !important; }
+            .children-container::before, .child-wrapper::before, .children-connector, .spouse-line { background: #000 !important; }
         }
-    } catch (err) {
-        // خرابی کی صورت میں فرنٹ اینڈ اسٹائلز کو لازمی بحال کرنا
-        treeElement.style.width = originalWidth;
-        treeElement.style.maxWidth = originalMaxWidth;
-        treeElement.style.overflow = originalOverflow;
-        
-        console.error('PDF Chart Generation Error:', err);
-        alert('شجرہ کا چارٹ بنانے میں خرابی آئی۔ براہ کرم دوبارہ کوشش کریں۔');
-    }
+    `;
+    document.head.appendChild(printStyle);
+    showToast('📄 پی ڈی ایف پرنٹ ڈائیلاگ شروع ہو رہا ہے...');
+    setTimeout(() => {
+        window.print();
+        document.head.removeChild(printStyle);
+    }, 500);
 }
-// ==================== ADVANCED FAMILY TREE CHART ONLY PRINT CONTROLLER ====================
-async function exportToPDF() {
-    if (!familyTree || !familyTree.members || Object.keys(familyTree.members).length === 0) {
-        alert('شجرہ نسب خالی ہے! پہلے کچھ افراد شامل کریں۔');
-        return;
-    }
-    
-    // نوٹیفکیشن یا ٹوسٹ دکھانے کے لیے سیف ہینڈلر
-    if (typeof showNotification === 'function') {
-        showNotification('📄 فیملی ٹری چارٹ PDF تیار ہو رہا ہے...');
-    } else if (typeof showToast === 'function') {
-        showToast('📄 فیملی ٹری چارٹ PDF تیار ہو رہا ہے...');
-    }
-
-    const treeElement = document.getElementById('treeDisplay');
-    if (!treeElement) {
-        alert('خرابی: شجرہ کا چارٹ ڈسپلے ایلیمنٹ نہیں ملا۔');
-        return;
-    }
-
-    // اسکرولنگ کی وجہ سے کٹنے والے حصے کو روکنے کے لیے عارضی اسٹائلز محفوظ کرنا
-    const originalWidth = treeElement.style.width;
-    const originalMaxWidth = treeElement.style.maxWidth;
-    const originalOverflow = treeElement.style.overflow;
-    
-    // چارٹ کو اس کی اصل مکمل پیمائش (Full Dimensions) پر لے جانا تاکہ کینوس پر پورا آ سکے
-    treeElement.style.width = 'max-content';
-    treeElement.style.maxWidth = 'none';
-    treeElement.style.overflow = 'visible';
-
-    try {
-        // ایچ ڈی کوالٹی کینوس تیار کرنا (تمام رنگوں، بیک گراؤنڈز اور سی ایس ایس کے ساتھ)
-        const canvas = await html2canvas(treeElement, {
-            scale: 2, // تصویر کو ایچ ڈی (HD) بنانے کے لیے
-            backgroundColor: null, // اصل CSS کے بیک گراؤنڈ رنگوں کو برقرار رکھنے کے لیے
-            logging: false,
-            useCORS: true,
-            allowTaint: true,
-            scrollX: 0,
-            scrollY: 0,
-            width: treeElement.scrollWidth, // مکمل چوڑائی کیپچر کرنا
-            height: treeElement.scrollHeight // مکمل لمبائی کیپچر کرنا
-        });
-
-        // عارضی تبدیلیاں واپس پرانی حالت میں لانا تاکہ فرنٹ اینڈ خراب نہ ہو
-        treeElement.style.width = originalWidth;
-        treeElement.style.maxWidth = originalMaxWidth;
-        treeElement.style.overflow = originalOverflow;
-
-        const imgData = canvas.toDataURL('image/png');
-        
-        // جے ایس پی ڈی ایف (jsPDF) کو چارٹ کے سائز کے مطابق آٹو ایڈجسٹ کرنا
-        const { jsPDF } = window.jspdf;
-        
-        // شجرہ کی چوڑائی اور لمبائی کو ملی میٹر میں تبدیل کرنا
-        const imgWidthMM = (canvas.width * 25.4) / 96 / 2; // scale 2 کے لیے ایڈجسٹمنٹ
-        const imgHeightMM = (canvas.height * 25.4) / 96 / 2;
-
-        // ایک مخصوص سائز کا صفحہ بنانا جو آپ کے شجرے کے سائز کے بالکل برابر ہو (تاکہ لکیریں نہ کٹیں)
-        const pdf = new jsPDF({
-            orientation: imgWidthMM > imgHeightMM ? 'l' : 'p',
-            unit: 'mm',
-            format: [imgWidthMM + 40, imgHeightMM + 40] // 20mm مارجن چاروں طرف
-        });
-
-        // شجرہ نسب کا امیج پی ڈی ایف میں شامل کرنا (تمام اصل رنگوں اور ایٹریبیوٹس کے ساتھ)
-        pdf.addImage(imgData, 'PNG', 20, 20, imgWidthMM, imgHeightMM);
-
-        // فائل محفوظ کریں
-        const fileName = (familyTree.treeName || 'family_tree_chart') + '_chart.pdf';
-        pdf.save(fileName);
-        
-        if (typeof showNotification === 'function') {
-            showNotification('✅ فیملی ٹری چارٹ کامیابی سے ڈاؤنلوڈ ہو گیا!');
-        } else if (typeof showToast === 'function') {
-            showToast('✅ فیملی ٹری چارٹ کامیابی سے ڈاؤنلوڈ ہو گیا!');
-        }
-    } catch (err) {
-        // خرابی کی صورت میں فرنٹ اینڈ اسٹائلز کو لازمی بحال کرنا
-        treeElement.style.width = originalWidth;
-        treeElement.style.maxWidth = originalMaxWidth;
-        treeElement.style.overflow = originalOverflow;
-        
-        console.error('PDF Chart Generation Error:', err);
-        alert('شجرہ کا چارٹ بنانے میں خرابی آئی۔ براہ کرم دوبارہ کوشش کریں۔');
-    }
-}
-    
 
 // ==================== IMPORTS & RESETS ====================
 function importJSON(input) {
