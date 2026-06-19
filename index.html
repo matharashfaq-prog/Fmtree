@@ -1142,8 +1142,7 @@ function loadTreeIndex(i) {
         showToast('📂 شجرہ لوڈ ہو گیا!');
     }
 }
-
-// ==================== ADVANCED PDF EXPORT CONTROLLER ====================
+// ==================== ADVANCED FAMILY TREE CHART ONLY PRINT CONTROLLER ====================
 async function exportToPDF() {
     if (!familyTree || !familyTree.members || Object.keys(familyTree.members).length === 0) {
         alert('شجرہ نسب خالی ہے! پہلے کچھ افراد شامل کریں۔');
@@ -1152,113 +1151,85 @@ async function exportToPDF() {
     
     // نوٹیفکیشن یا ٹوسٹ دکھانے کے لیے سیف ہینڈلر
     if (typeof showNotification === 'function') {
-        showNotification('📄 PDF تیار ہو رہا ہے...');
+        showNotification('📄 فیملی ٹری چارٹ PDF تیار ہو رہا ہے...');
     } else if (typeof showToast === 'function') {
-        showToast('📄 PDF تیار ہو رہا ہے...');
+        showToast('📄 فیملی ٹری چارٹ PDF تیار ہو رہا ہے...');
     }
 
-    const { jsPDF } = window.jspdf;
-    // لینڈ اسکیپ اورینٹیشن خاندانی درخت کی چوڑائی کے لیے بہترین ہے
-    const pdf = new jsPDF('l', 'mm', 'a4');
-    
-    // صفحہ اول کا ٹائٹل اور ہیڈر ڈیزائن
-    pdf.setFontSize(22);
-    pdf.text(familyTree.treeName || 'شجرہ نسب', 148, 15, { align: 'center' });
-    pdf.setFontSize(12);
-    pdf.text('خاندانی شجرہ نسب', 148, 25, { align: 'center' });
-    pdf.setFontSize(10);
-    pdf.text('تاریخ: ' + new Date().toLocaleDateString('ur-PK'), 20, 35);
-
-    // صرف ٹری ڈسپلے کے اسکرولنگ پینل کے ایلیمنٹ کو کیپچر کرنا
     const treeElement = document.getElementById('treeDisplay');
     if (!treeElement) {
-        alert('خرابی: شجرہ کا ڈسپلے ایلیمنٹ نہیں ملا۔');
+        alert('خرابی: شجرہ کا چارٹ ڈسپلے ایلیمنٹ نہیں ملا۔');
         return;
     }
 
+    // اسکرولنگ کی وجہ سے کٹنے والے حصے کو روکنے کے لیے عارضی اسٹائلز محفوظ کرنا
+    const originalWidth = treeElement.style.width;
+    const originalMaxWidth = treeElement.style.maxWidth;
+    const originalOverflow = treeElement.style.overflow;
+    
+    // چارٹ کو اس کی اصل مکمل پیمائش (Full Dimensions) پر لے جانا تاکہ کینوس پر پورا آ سکے
+    treeElement.style.width = 'max-content';
+    treeElement.style.maxWidth = 'none';
+    treeElement.style.overflow = 'visible';
+
     try {
-        // ایلیمنٹ کو ایچ ڈی کوالٹی کینوس میں تبدیل کرنا (بیک گراؤنڈ سفید سیٹ کیا گیا ہے)
+        // ایچ ڈی کوالٹی کینوس تیار کرنا (تمام رنگوں، بیک گراؤنڈز اور سی ایس ایس کے ساتھ)
         const canvas = await html2canvas(treeElement, {
-            scale: 2, 
-            backgroundColor: '#ffffff', 
+            scale: 2, // تصویر کو ایچ ڈی (HD) بنانے کے لیے
+            backgroundColor: null, // اصل CSS کے بیک گراؤنڈ رنگوں کو برقرار رکھنے کے لیے
             logging: false,
-            useCORS: true
-        });
-        
-        const imgData = canvas.toDataURL('image/png');
-        const imgWidth = 257; // A4 پیج کی چوڑائی کے مطابق مارجن ایڈجسٹمنٹ
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        
-        // پہلی شیٹ پر صرف فیملی ٹری گراف رینڈر ہوگا
-        pdf.addImage(imgData, 'PNG', 20, 45, imgWidth, Math.min(imgHeight, 145));
-        
-        // صفحہ دوم: فیملی ممبرز کی وضاحتی فہرست ٹیکسٹ فارمیٹ میں
-        pdf.addPage();
-        pdf.setFontSize(16);
-        pdf.text('فیملی ممبرز کی فہرست', 148, 15, { align: 'center' });
-        
-        let y = 30;
-        const members = Object.values(familyTree.members);
-        pdf.setFontSize(10);
-        
-        members.forEach((member, i) => {
-            if (y > 190) { // لینڈ اسکیپ سیف ہائٹ چیک فار نیو پیج
-                pdf.addPage();
-                y = 20;
-            }
-            // رشتہ معلوم کرنے کی چیکنگ
-            let relationText = '';
-            if (member.relation === 'root') {
-                relationText = 'جڑ (بنیاد)';
-            } else if (typeof urduRelations !== 'undefined' && urduRelations[member.relation]) {
-                relationText = urduRelations[member.relation];
-            } else {
-                relationText = member.relation || 'رشتہ دار';
-            }
-            
-            const line = `${i + 1}. ${member.name} - ${relationText} (نسل ${member.generation || 1})`;
-            pdf.text(line, 20, y);
-            y += 8;
+            useCORS: true,
+            allowTaint: true,
+            scrollX: 0,
+            scrollY: 0,
+            width: treeElement.scrollWidth, // مکمل چوڑائی کیپچر کرنا
+            height: treeElement.scrollHeight // مکمل لمبائی کیپچر کرنا
         });
 
-        // اگر فیملی ٹری میں درستگیوں (Corrections) کا لاگ موجود ہو تو تیسرا سیکشن پرنٹ کریں
-        if (familyTree.corrections && familyTree.corrections.length > 0) {
-            pdf.addPage();
-            pdf.setFontSize(16);
-            pdf.text('درست شدہ رشتے اور ہسٹری', 148, 15, { align: 'center' });
-            y = 30;
-            pdf.setFontSize(10);
-            
-            familyTree.corrections.forEach((c, i) => {
-                if (y > 190) {
-                    pdf.addPage();
-                    y = 20;
-                }
-                const p1 = familyTree.members[c.person1];
-                const p2 = familyTree.members[c.person2];
-                if (p1 && p2) {
-                    const origRel = (typeof urduRelations !== 'undefined') ? (urduRelations[c.originalRelation] || c.originalRelation) : c.originalRelation;
-                    const corrRel = (typeof urduRelations !== 'undefined') ? (urduRelations[c.correctedRelation] || c.correctedRelation) : c.correctedRelation;
-                    const line = `${i + 1}. ${p1.name} کا ${p2.name} سے رشتہ: ${origRel} → ${corrRel}`;
-                    pdf.text(line, 20, y);
-                    y += 8;
-                }
-            });
-        }
+        // عارضی تبدیلیاں واپس پرانی حالت میں لانا تاکہ فرنٹ اینڈ خراب نہ ہو
+        treeElement.style.width = originalWidth;
+        treeElement.style.maxWidth = originalMaxWidth;
+        treeElement.style.overflow = originalOverflow;
+
+        const imgData = canvas.toDataURL('image/png');
+        
+        // جے ایس پی ڈی ایف (jsPDF) کو چارٹ کے سائز کے مطابق آٹو ایڈجسٹ کرنا
+        const { jsPDF } = window.jspdf;
+        
+        // شجرہ کی چوڑائی اور لمبائی کو ملی میٹر میں تبدیل کرنا
+        const imgWidthMM = (canvas.width * 25.4) / 96 / 2; // scale 2 کے لیے ایڈجسٹمنٹ
+        const imgHeightMM = (canvas.height * 25.4) / 96 / 2;
+
+        // ایک مخصوص سائز کا صفحہ بنانا جو آپ کے شجرے کے سائز کے بالکل برابر ہو (تاکہ لکیریں نہ کٹیں)
+        const pdf = new jsPDF({
+            orientation: imgWidthMM > imgHeightMM ? 'l' : 'p',
+            unit: 'mm',
+            format: [imgWidthMM + 40, imgHeightMM + 40] // 20mm مارجن چاروں طرف
+        });
+
+        // شجرہ نسب کا امیج پی ڈی ایف میں شامل کرنا (تمام اصل رنگوں اور ایٹریبیوٹس کے ساتھ)
+        pdf.addImage(imgData, 'PNG', 20, 20, imgWidthMM, imgHeightMM);
 
         // فائل محفوظ کریں
-        pdf.save((familyTree.treeName || 'shajra_nasab') + '.pdf');
+        const fileName = (familyTree.treeName || 'family_tree_chart') + '_chart.pdf';
+        pdf.save(fileName);
         
         if (typeof showNotification === 'function') {
-            showNotification('✅ PDF کامیابی سے ڈاؤنلوڈ ہو گیا!');
+            showNotification('✅ فیملی ٹری چارٹ کامیابی سے ڈاؤنلوڈ ہو گیا!');
         } else if (typeof showToast === 'function') {
-            showToast('✅ PDF کامیابی سے ڈاؤنلوڈ ہو گیا!');
+            showToast('✅ فیملی ٹری چارٹ کامیابی سے ڈاؤنلوڈ ہو گیا!');
         }
     } catch (err) {
-        console.error('PDF Generation Error:', err);
-        alert('PDF بنانے میں خرابی آئی۔ براہ کرم دوبارہ کوشش کریں۔');
+        // خرابی کی صورت میں فرنٹ اینڈ اسٹائلز کو لازمی بحال کرنا
+        treeElement.style.width = originalWidth;
+        treeElement.style.maxWidth = originalMaxWidth;
+        treeElement.style.overflow = originalOverflow;
+        
+        console.error('PDF Chart Generation Error:', err);
+        alert('شجرہ کا چارٹ بنانے میں خرابی آئی۔ براہ کرم دوبارہ کوشش کریں۔');
     }
 }
+
 
 function deleteSavedIndex(i) {
     if (!confirm('کیا آپ واقعی اسے حذف کرنا چاہتے ہیں؟')) return;
