@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ur">
 <head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#667eea">
@@ -9,14 +10,25 @@
 <meta name="apple-mobile-web-app-title" content="شجرہ نسب">
 <meta name="description" content="اپنے خاندان کا شجرہ نسب بنائیں">
 <meta name="mobile-web-app-capable" content="yes">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <title>شجرہ نسب - فیملی ٹری</title>
 
 <script>
     // سپابیس کنکشن سیٹ اپ
+// سپابیس کنکشن سیٹ اپ (حفاظتی طریقہ)
 const SUPABASE_URL = "https://hxaczwosuxoxxmzhsply.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4YWN6d29zdXhveHhtemhzcGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODg5MzQsImV4cCI6MjA5NzQ2NDkzNH0._Hl6ALLffLD6nwJKj2CPwRyx6RwSKzEONFC2COn6wbg";
-const supabaseCloud = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let supabaseCloud = null; // شروع میں اسے خالی رکھیں تاکہ کوڈ کریش نہ ہو
+
+// جب پورا پیج اور تمام اسکرپٹس انٹرنیٹ سے لوڈ ہو جائیں، تب کنکشن بناؤ
+window.addEventListener('load', () => {
+    if (typeof Supabase !== 'undefined') {
+        supabaseCloud = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log("✅ سپابیس کامیابی سے کنیکٹ ہو گیا ہے!");
+    } else {
+        console.error("❌ الرٹ: سپابیس کی فائل انٹرنیٹ سے ڈاؤنلوڈ نہیں ہو سکی۔");
+    }
+});
 
 let currentTreeId = null; // کلاؤڈ شجرہ کی آئی ڈی ٹریک کرنے کے لیے
 const manifest = {
@@ -1197,11 +1209,11 @@ async function saveTreeToCloud() {
             updated_at: new Date().toISOString()
         };
 
-        // یہاں چیک کریں کہ نیا نام 'Supabase' صحیح ہے یا نہیں
-        if (typeof Supabase === 'undefined') {
-            alert("Error: 'Supabase' لائبریری لوڈ نہیں ہوئی۔ اوپر والا اسکرپٹ ٹیگ چیک کریں۔");
-            return;
-        }
+       // پرانے چیک کی جگہ یہ لکھیں
+if (!supabaseCloud) {
+    alert("ایرر: سپابیس ابھی لوڈ ہو رہا ہے یا انٹرنیٹ کنکشن سست ہے۔ براہ کرم ۵ سیکنڈ بعد دوبارہ کوشش کریں۔");
+    return;
+}
 
         // یہاں ہم نے 'supabaseCloud' استعمال کیا ہے
         const { error } = await supabaseCloud
@@ -1603,4 +1615,4 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 </script>
 </body>
 </html>
-h2
+By Athar
