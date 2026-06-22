@@ -242,7 +242,20 @@ h1 { text-align: center; color: white; font-size: 1.8em; margin-bottom: 6px; tex
         <button class="btn btn-danger" onclick="clearAll()">🗑️ سب حذف</button>
     </div>
 </div>
+<!-- زوم اور اسکرین شاٹ کے کنٹرولز -->
+<div style="display: flex; gap: 10px; margin-bottom: 15px; justify-content: center; background: #f0f2f5; padding: 10px; border-radius: 12px;">
+    <button onclick="zoomIn()" class="btn" style="background: #667eea; color: white; padding: 8px 15px; max-width: 100px;">🔍 ➕ زوم ان</button>
+    <button onclick="zoomOut()" class="btn" style="background: #667eea; color: white; padding: 8px 15px; max-width: 100px;">🔍 ➖ زوم آؤٹ</button>
+    <button onclick="resetZoom()" class="btn" style="background: #718096; color: white; padding: 8px 15px; max-width: 100px;">🔄 ریسیٹ</button>
+    <button onclick="takeTreeScreenshot()" class="btn" style="background: #2b6cb0; color: white; padding: 8px 15px; max-width: 150px;">📸 اسکرین شاٹ</button>
+</div>
 
+<!-- شجرہ ڈسپلے ایریا جس پر زوم کام کرے گا -->
+<div class="tree-scroll" style="border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; overflow: auto; max-height: 500px;">
+    <div id="treeDisplay" class="tree" style="transform-origin: top center; transition: transform 0.2s ease;">
+        <!-- نیلا اور پنک فیملی ٹری یہاں رینڈر ہوتا ہے -->
+    </div>
+</div>
 <div class="card">
     <h2 class="card-title">🌲 خاندانی شجرہ</h2>
     <div class="legend">
@@ -1325,7 +1338,93 @@ function exportToPDF() {
         document.head.removeChild(printStyle);
     }, 500);
 }
+// ==================== زوم ان / آؤٹ کنٹرولر ====================
+let currentZoomScale = 1.0;
 
+function zoomIn() {
+    if (currentZoomScale < 2.0) { // زیادہ سے زیادہ 200 فیصد زوم
+        currentZoomScale += 0.1;
+        applyZoom();
+    }
+}
+
+function zoomOut() {
+    if (currentZoomScale > 0.5) { // کم سے کم 50 فیصد زوم
+        currentZoomScale -= 0.1;
+        applyZoom();
+    }
+}
+
+function resetZoom() {
+    currentZoomScale = 1.0;
+    applyZoom();
+}
+
+function applyZoom() {
+    const treeDisplay = document.getElementById('treeDisplay');
+    if (treeDisplay) {
+        treeDisplay.style.transform = `scale(${currentZoomScale})`;
+    }
+}
+
+// ==================== مخصوص فیملی ٹری کا اسکرین شاٹ ====================
+async function takeTreeScreenshot() {
+    const treeElement = document.getElementById('treeDisplay');
+    if (!treeElement || treeElement.children.length === 0 || treeElement.querySelector('.empty-state')) {
+        showToast('❌ شجرہ نسب خالی ہے، اسکرین شاٹ نہیں لیا جا سکتا!');
+        return;
+    }
+
+    showToast('📸 فیملی ٹری کی تصویر تیار ہو رہی ہے...');
+
+    // زوم اسکیل کو عارضی طور پر 1 پر لائیں تاکہ امیج کٹے بغیر اصل کوالٹی میں آئے
+    const savedScale = currentZoomScale;
+    treeElement.style.transform = 'scale(1)';
+    
+    const originalWidth = treeElement.style.width;
+    const originalMaxWidth = treeElement.style.maxWidth;
+    
+    treeElement.style.width = 'max-content';
+    treeElement.style.maxWidth = 'none';
+
+    try {
+        // html2canvas کا استعمال کرتے ہوئے صرف اس حصے کا کینوس بنانا
+        const canvas = await html2canvas(treeElement, {
+            scale: 2, // ایچ ڈی اسکرین شاٹ کے لیے
+            backgroundColor: '#ffffff', // صاف بیک گراؤنڈ
+            useCORS: true,
+            allowTaint: true,
+            width: treeElement.scrollWidth,
+            height: treeElement.scrollHeight
+        });
+
+        // اسٹائلز واپس پرانی حالت میں لانا
+        treeElement.style.transform = `scale(${savedScale})`;
+        treeElement.style.width = originalWidth;
+        treeElement.style.maxWidth = originalMaxWidth;
+
+        // کینوس کو امیج (PNG) میں بدلنا
+        const imageURI = canvas.toDataURL('image/png');
+        
+        // ڈاؤنلوڈ لنک بنانا
+        const downloadLink = document.createElement('a');
+        downloadLink.href = imageURI;
+        downloadLink.download = (familyTree.treeName || 'shajra_nasab') + '_chart.png';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+
+        showToast('✅ اسکرین شاٹ گیلری میں محفوظ ہو گیا!');
+    } catch (error) {
+        // خرابی کی صورت میں بھی فرنٹ اینڈ کو پرانی حالت پر لانا لازمی ہے
+        treeElement.style.transform = `scale(${savedScale})`;
+        treeElement.style.width = originalWidth;
+        treeElement.style.maxWidth = originalMaxWidth;
+        
+        console.error('Screenshot Error:', error);
+        showToast('❌ اسکرین شاٹ لینے میں ناکامی۔');
+    }
+}
 // ==================== IMPORTS & RESETS ====================
 function importJSON(input) {
     const file = input.files[0];
@@ -1383,3 +1482,4 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 </script>
 </body>
 </html>
+h2
