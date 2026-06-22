@@ -16,7 +16,7 @@
     // سپابیس کنکشن سیٹ اپ
 const SUPABASE_URL = "https://hxaczwosuxoxxmzhsply.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4YWN6d29zdXhveHhtemhzcGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODg5MzQsImV4cCI6MjA5NzQ2NDkzNH0._Hl6ALLffLD6nwJKj2CPwRyx6RwSKzEONFC2COn6wbg";
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseCloud = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentTreeId = null; // کلاؤڈ شجرہ کی آئی ڈی ٹریک کرنے کے لیے
 const manifest = {
@@ -1169,52 +1169,58 @@ function loadTreeIndex(i) {
     }
 }
 async function saveTreeToCloud() {
-    if (!Object.keys(familyTree.members).length) { showToast('❌ شجرہ خالی ہے!'); return; }
-    
-    // اگر شجرہ کا نام پہلے سے سیٹ نہیں ہے تو پوچھیں
-    if (!familyTree.treeName) {
-        const name = prompt("شجرہ نسب کا نام درج کریں (مثلاً: شجرہ نسب الہیٰ):") || "میرا خاندانی شجرہ";
-        familyTree.treeName = name;
-    }
+    try {
+        if (!familyTree || !familyTree.members || !Object.keys(familyTree.members).length) { 
+            showToast('❌ شجرہ خالی ہے!'); 
+            return; 
+        }
+        
+        if (!familyTree.treeName) {
+            const name = prompt("شجرہ نسب کا نام درج کریں (مثلاً: Shajra_Nasab_Alvi):") || "Mera_Khandani_Shajra";
+            familyTree.treeName = name.trim().replace(/\s+/g, '_');
+        }
 
-    showToast('💾 کلاؤڈ پر محفوظ ہو رہا ہے...');
+        showToast('💾 کلاؤڈ پر محفوظ ہو رہا ہے...');
 
-    const payload = {
-        tree_name: familyTree.treeName,
-        tree_data: familyTree,
-        updated_at: new Date().toISOString()
-    };
+        const params = new URLSearchParams(window.location.search);
+        let treeIdFromUrl = params.get('tree_id');
 
-    if (currentTreeId) {
-        // اگر رشتہ دار پہلے سے موجود شجرے کو بڑا کر رہا ہے تو اسے اپڈیٹ کرو
-        const { error } = await supabase
+        if (!treeIdFromUrl) {
+            const randomNumber = Math.floor(1000 + Math.random() * 9000);
+            treeIdFromUrl = `${familyTree.treeName}_${randomNumber}`;
+        }
+
+        const payload = {
+            id: treeIdFromUrl,
+            tree_name: familyTree.treeName,
+            tree_data: familyTree,
+            updated_at: new Date().toISOString()
+        };
+
+        // یہاں چیک کریں کہ نیا نام 'Supabase' صحیح ہے یا نہیں
+        if (typeof Supabase === 'undefined') {
+            alert("Error: 'Supabase' لائبریری لوڈ نہیں ہوئی۔ اوپر والا اسکرپٹ ٹیگ چیک کریں۔");
+            return;
+        }
+
+        // یہاں ہم نے 'supabaseCloud' استعمال کیا ہے
+        const { error } = await supabaseCloud
             .from('family_trees')
-            .update(payload)
-            .eq('id', currentTreeId);
+            .upsert([payload], { onConflict: 'id' });
 
         if (error) {
-            console.error(error);
-            showToast('❌ اپڈیٹ کرنے میں خرابی آئی۔');
-        } else {
-            showToast('✅ شجرہ کامیابی سے اپڈیٹ (بڑا) ہو گیا!');
-        }
-    } else {
-        // اگر آپ پہلی بار نیا شجرہ بنا کر کلاؤڈ پر ڈال رہے ہیں
-        const { data, error } = await supabase
-            .from('family_trees')
-            .insert([payload])
-            .select();
-
-        if (error || !data) {
-            console.error(error);
+            console.error("Supabase Error:", error);
+            alert("Supabase Error: " + error.message);
             showToast('❌ کلاؤڈ پر محفوظ کرنے میں خرابی۔');
         } else {
-            currentTreeId = data[0].id;
             showToast('✅ شجرہ کلاؤڈ پر لائیو ہو گیا!');
-            // براؤزر کے لنک میں آئی ڈی ڈال دیں تاکہ یہ لنک شیئر ہو سکے
-            const newUrl = window.location.origin + window.location.pathname + `?tree_id=${currentTreeId}`;
+            
+            const newUrl = window.location.origin + window.location.pathname + `?tree_id=${treeIdFromUrl}`;
             window.history.pushState({ path: newUrl }, '', newUrl);
         }
+    } catch (globalError) {
+        console.error("Global JS Error:", globalError);
+        alert("JavaScript Error: " + globalError.message);
     }
 }
 // ==================== NEW ADVANCED PDF EXPORT CONTROLLER ====================
@@ -1404,7 +1410,7 @@ async function loadTreeFromCloud() {
     showToast(`📥 شجرہ لائیو لوڈڈ! (کل ویوز: ${data.views_count + 1})`);
 
     // 2. ڈیٹا بیس میں ویوز کی تعداد 1 بڑھا دیں تاکہ آپ کو پتہ چلے کہ کسی نے کھولا ہے
-    await supabase
+    await saveTreeToCloud()
         .from('family_trees')
         .update({ views_count: data.views_count + 1 })
         .eq('id', treeId);
@@ -1417,25 +1423,19 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAll(); 
 });
 function shareWhatsAppWithCloud() {
-    // Check karein ki kya shajra cloud par save ho chuka hai aur ID mil chuki hai
-    if (!currentTreeId) {
-        alert("Pehle shajra ko '🌐 Kلاؤڈ پر لائیو محفوظ کریں' (Cloud Save) button se save karein, taaki live link ban sake.");
+    const params = new URLSearchParams(window.location.search);
+    const treeId = params.get('tree_id');
+
+    if (!treeId) {
+        alert("Pehle shajra ko '🌐 کلاؤڈ پر لائیو محفوظ کریں' button se save karein.");
         return;
     }
 
-    // GitHub ka live link aur sath mein Supabase ki unique tree_id
-    const shareUrl = window.location.origin + window.location.pathname + `?tree_id=${currentTreeId}`;
+    const shareUrl = window.location.origin + window.location.pathname + `?tree_id=${treeId}`;
+    const messageText = `سلام! ہمارے خاندان کا لائیو شجرہ نسب تیار ہو گیا ہے۔ آپ اس لنک پر کلک کر کے اسے دیکھ سکتے ہیں: ${shareUrl}`;
     
-    // WhatsApp par bheja jaane wala urdu message
-    const messageText = `سلام! ہمارے خاندان کا لائیو شجرہ نسب تیار ہو گیا ہے۔ آپ اس لنک پر کلک کر کے اسے دیکھ سکتے ہیں، اور اگر کوئی نام رہ گیا ہے تو شامل کر کے بڑا بھی کر سکتے ہیں: ${shareUrl}`;
-    
-    // WhatsApp open karne ka live link
-    const whatsappUrl = 'https://wa.me/?text=' + encodeURIComponent(messageText);
-    
-    // Naye tab mein WhatsApp open karein
-    window.open(whatsappUrl, '_blank');
-}
-// ==================== ADVANCED PRINTING & PDF EXPORT SYSTEM ====================
+    window.open('https://wa.me/?text=' + encodeURIComponent(messageText), '_blank');
+}// ==================== ADVANCED PRINTING & PDF EXPORT SYSTEM ====================
 function exportToPDF() {
     const printStyle = document.createElement('style');
     printStyle.innerHTML = `
@@ -1603,4 +1603,4 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 </script>
 </body>
 </html>
-Created and Design By Athar Ashfaq Okara
+h2
