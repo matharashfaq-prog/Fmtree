@@ -9,9 +9,16 @@
 <meta name="apple-mobile-web-app-title" content="شجرہ نسب">
 <meta name="description" content="اپنے خاندان کا شجرہ نسب بنائیں">
 <meta name="mobile-web-app-capable" content="yes">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <title>شجرہ نسب - فیملی ٹری</title>
 
 <script>
+    // سپابیس کنکشن سیٹ اپ
+const SUPABASE_URL = "https://hxaczwosuxoxxmzhsply.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4YWN6d29zdXhveHhtemhzcGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODg5MzQsImV4cCI6MjA5NzQ2NDkzNH0._Hl6ALLffLD6nwJKj2CPwRyx6RwSKzEONFC2COn6wbg";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentTreeId = null; // کلاؤڈ شجرہ کی آئی ڈی ٹریک کرنے کے لیے
 const manifest = {
     name: "شجرہ نسب - فیملی ٹری",
     short_name: "شجرہ نسب",
@@ -212,6 +219,12 @@ h1 { text-align: center; color: white; font-size: 1.8em; margin-bottom: 6px; tex
     <button class="action-btn btn-pdf" onclick="exportToPDF()"><span style="font-size:1.3em">📄</span><span>PDF</span></button>
     <button class="action-btn btn-share" onclick="showShareModal()"><span style="font-size:1.3em">🔗</span><span>شیئر</span></button>
 </div>
+<button onclick="saveTreeToCloud()" class="btn" style="background: #2b6cb0; color: white; margin: 5px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold;">
+    🌐 کلاؤڈ پر لائیو محفوظ کریں
+</button>
+<button onclick="shareWhatsAppWithCloud()" class="btn" style="background: #25D366; color: white; margin: 5px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold;">
+    🟢 WhatsApp par Shajra Share Karein
+</button>
 
 <div class="card">
     <h2 class="card-title">👤 نیا فرد شامل کریں</h2>
@@ -1155,7 +1168,55 @@ function loadTreeIndex(i) {
         showToast('📂 شجرہ لوڈ ہو گیا!');
     }
 }
+async function saveTreeToCloud() {
+    if (!Object.keys(familyTree.members).length) { showToast('❌ شجرہ خالی ہے!'); return; }
+    
+    // اگر شجرہ کا نام پہلے سے سیٹ نہیں ہے تو پوچھیں
+    if (!familyTree.treeName) {
+        const name = prompt("شجرہ نسب کا نام درج کریں (مثلاً: شجرہ نسب الہیٰ):") || "میرا خاندانی شجرہ";
+        familyTree.treeName = name;
+    }
 
+    showToast('💾 کلاؤڈ پر محفوظ ہو رہا ہے...');
+
+    const payload = {
+        tree_name: familyTree.treeName,
+        tree_data: familyTree,
+        updated_at: new Date().toISOString()
+    };
+
+    if (currentTreeId) {
+        // اگر رشتہ دار پہلے سے موجود شجرے کو بڑا کر رہا ہے تو اسے اپڈیٹ کرو
+        const { error } = await supabase
+            .from('family_trees')
+            .update(payload)
+            .eq('id', currentTreeId);
+
+        if (error) {
+            console.error(error);
+            showToast('❌ اپڈیٹ کرنے میں خرابی آئی۔');
+        } else {
+            showToast('✅ شجرہ کامیابی سے اپڈیٹ (بڑا) ہو گیا!');
+        }
+    } else {
+        // اگر آپ پہلی بار نیا شجرہ بنا کر کلاؤڈ پر ڈال رہے ہیں
+        const { data, error } = await supabase
+            .from('family_trees')
+            .insert([payload])
+            .select();
+
+        if (error || !data) {
+            console.error(error);
+            showToast('❌ کلاؤڈ پر محفوظ کرنے میں خرابی۔');
+        } else {
+            currentTreeId = data[0].id;
+            showToast('✅ شجرہ کلاؤڈ پر لائیو ہو گیا!');
+            // براؤزر کے لنک میں آئی ڈی ڈال دیں تاکہ یہ لنک شیئر ہو سکے
+            const newUrl = window.location.origin + window.location.pathname + `?tree_id=${currentTreeId}`;
+            window.history.pushState({ path: newUrl }, '', newUrl);
+        }
+    }
+}
 // ==================== NEW ADVANCED PDF EXPORT CONTROLLER ====================
 // یہ فنکشن صرف فیملی ٹری فلو چارٹ کو بغیر کٹے مکمل رنگوں کے ساتھ پرنٹ کرے گا
 async function exportToPDF() {
@@ -1313,7 +1374,67 @@ function shareWhatsApp() {
     const msg = `🌳 *السلام علیکم!* میں نے اپنے خاندان کا شجرہ نسب تیار کیا ہے۔ آپ اس لنک پر کلک کر کے پورا خاندانی نیٹ ورک دیکھ سکتے ہیں اور اپنے نام شامل کر سکتے ہیں: \n\n🔗 ${link}`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
 }
+async function loadTreeFromCloud() {
+    const params = new URLSearchParams(window.location.search);
+    const treeId = params.get('tree_id');
+    
+    if (!treeId) return; // اگر لنک سادہ ہے تو کچھ نہ کرو
 
+    currentTreeId = treeId;
+    showToast('🔄 کلاؤڈ سے شجرہ لوڈ ہو رہا ہے...');
+
+    // 1. شجرہ لوڈ کرنا اور ساتھ ہی ویوز کاؤنٹ بڑھانا
+    const { data, error } = await supabase
+        .from('family_trees')
+        .select('tree_data, views_count')
+        .eq('id', treeId)
+        .single();
+
+    if (error || !data) {
+        console.error(error);
+        showToast('❌ شجرہ لوڈ نہیں ہو سکا۔ لنک درست نہیں ہے۔');
+        return;
+    }
+
+    // شجرہ کا ڈیٹا فرنٹ اینڈ پر سیٹ کریں
+    familyTree = data.tree_data;
+    updateAll(); // آپ کا فارم اور ڈسپلے ریفریش کرنے والا فنکشن
+    
+    // آپ کو بتانا کہ اب تک کتنے لوگ اسے دیکھ چکے ہیں
+    showToast(`📥 شجرہ لائیو لوڈڈ! (کل ویوز: ${data.views_count + 1})`);
+
+    // 2. ڈیٹا بیس میں ویوز کی تعداد 1 بڑھا دیں تاکہ آپ کو پتہ چلے کہ کسی نے کھولا ہے
+    await supabase
+        .from('family_trees')
+        .update({ views_count: data.views_count + 1 })
+        .eq('id', treeId);
+}
+
+// اس فنکشن کو اپنے پرانے DOMContentLoaded والے ایونٹ لسنر کے اندر شامل کر دیں
+document.addEventListener('DOMContentLoaded', () => { 
+    loadFromStorage(); 
+    loadTreeFromCloud(); // کلاؤڈ سے شجرہ اور ویوز کا خودکار نظام
+    updateAll(); 
+});
+function shareWhatsAppWithCloud() {
+    // Check karein ki kya shajra cloud par save ho chuka hai aur ID mil chuki hai
+    if (!currentTreeId) {
+        alert("Pehle shajra ko '🌐 Kلاؤڈ پر لائیو محفوظ کریں' (Cloud Save) button se save karein, taaki live link ban sake.");
+        return;
+    }
+
+    // GitHub ka live link aur sath mein Supabase ki unique tree_id
+    const shareUrl = window.location.origin + window.location.pathname + `?tree_id=${currentTreeId}`;
+    
+    // WhatsApp par bheja jaane wala urdu message
+    const messageText = `سلام! ہمارے خاندان کا لائیو شجرہ نسب تیار ہو گیا ہے۔ آپ اس لنک پر کلک کر کے اسے دیکھ سکتے ہیں، اور اگر کوئی نام رہ گیا ہے تو شامل کر کے بڑا بھی کر سکتے ہیں: ${shareUrl}`;
+    
+    // WhatsApp open karne ka live link
+    const whatsappUrl = 'https://wa.me/?text=' + encodeURIComponent(messageText);
+    
+    // Naye tab mein WhatsApp open karein
+    window.open(whatsappUrl, '_blank');
+}
 // ==================== ADVANCED PRINTING & PDF EXPORT SYSTEM ====================
 function exportToPDF() {
     const printStyle = document.createElement('style');
@@ -1482,4 +1603,4 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 </script>
 </body>
 </html>
-h2
+Created and Design By Athar Ashfaq Okara
