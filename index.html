@@ -1349,7 +1349,7 @@ function zoomIn() {
 }
 
 function zoomOut() {
-    if (currentZoomScale > 0.5) { // کم سے کم 50 فیصد زوم
+    if (currentZoomScale > 0.10) { // کم سے کم 10 فیصد زوم
         currentZoomScale -= 0.1;
         applyZoom();
     }
